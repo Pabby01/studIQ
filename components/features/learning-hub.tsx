@@ -1,21 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { 
-  BookOpen, 
-  Upload, 
-  Brain, 
-  Award, 
-  FileText, 
+import {
+  BookOpen,
+  Upload,
+  Brain,
+  Award,
+  FileText,
   Play,
   TrendingUp,
   Clock,
   Star
 } from 'lucide-react';
+import { useAuth } from '@/components/providers/providers';
 
 const RECENT_COURSES = [
   {
@@ -67,6 +68,72 @@ const AI_FEATURES = [
 
 export function LearningHub() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [title, setTitle] = useState('');
+  const [textContent, setTextContent] = useState('');
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { getAccessToken, user } = useAuth();
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const token = await getAccessToken();
+        const res = await fetch('/api/materials', {
+          headers: {
+            'content-type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        setMaterials(json.items || []);
+      } catch {}
+    };
+    load();
+  }, [getAccessToken]);
+
+  const onChooseFile = () => fileInputRef.current?.click();
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setSelectedFile(file);
+    // Optional: if plain text, read to textContent
+    if (file && file.type === 'text/plain') {
+      const text = await file.text();
+      setTextContent(text);
+      if (!title) setTitle(file.name.replace(/\.[^/.]+$/, ''));
+    }
+  };
+
+  const onSubmit = async () => {
+    try {
+      setLoading(true);
+      const token = await getAccessToken();
+      const res = await fetch('/api/materials', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ title: title || undefined, textContent: textContent || undefined })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'Failed to save');
+      }
+      const json = await res.json();
+      setMaterials((prev) => [json.item, ...prev]);
+      setTitle('');
+      setTextContent('');
+      setSelectedFile(null);
+    } catch (e) {
+      console.error(e);
+      alert((e as any)?.message || 'Failed to save material');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6">
@@ -87,7 +154,19 @@ export function LearningHub() {
               <Upload className="w-5 h-5 text-blue-600" />
               <h2 className="text-lg font-semibold">Upload Course Materials</h2>
             </div>
-            
+
+            <div className="grid gap-3 mb-4">
+              <Input placeholder="Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} />
+              <div>
+                <textarea
+                  placeholder="Paste text content to summarize (optional)"
+                  value={textContent}
+                  onChange={(e) => setTextContent(e.target.value)}
+                  className="w-full min-h-[120px] p-3 border rounded-md text-sm"
+                />
+              </div>
+            </div>
+
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
               <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600 mb-2">
@@ -96,9 +175,13 @@ export function LearningHub() {
               <p className="text-sm text-gray-500 mb-4">
                 Supports PDF, DOCX, TXT files up to 10MB
               </p>
-              <Button>
+              <input ref={fileInputRef} type="file" className="hidden" onChange={onFileChange} />
+              <Button onClick={onChooseFile} disabled={loading}>
                 <Upload className="w-4 h-4 mr-2" />
-                Choose Files
+                {selectedFile ? selectedFile.name : 'Choose Files'}
+              </Button>
+              <Button className="ml-3" onClick={onSubmit} disabled={loading}>
+                {loading ? 'Saving...' : 'Save'}
               </Button>
             </div>
           </Card>

@@ -7,8 +7,10 @@ import { LearningHub } from '@/components/features/learning-hub';
 import { FinanceHub } from '@/components/features/finance-hub';
 import { CampusTools } from '@/components/features/campus-tools';
 import { ProfilePage } from '@/components/features/profile-page';
+import { WalletConnect } from '@/components/wallet/wallet-connect';
+import { WalletBalance } from '@/components/wallet/wallet-balance';
 
-export type TabType = 'learning' | 'finance' | 'campus' | 'profile';
+export type TabType = 'learning' | 'finance' | 'campus' | 'profile' | 'wallet';
 
 export function MainLayout() {
   const [activeTab, setActiveTab] = useState<TabType>('learning');
@@ -23,6 +25,18 @@ export function MainLayout() {
         return <CampusTools />;
       case 'profile':
         return <ProfilePage />;
+      case 'wallet':
+        return (
+          <div className="container mx-auto px-4 py-8">
+            <h2 className="text-2xl font-bold mb-6">Wallet</h2>
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex flex-col space-y-4">
+                <WalletConnect />
+                <WalletBalance />
+              </div>
+            </div>
+          </div>
+        );
       default:
         return <LearningHub />;
     }

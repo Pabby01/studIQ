@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  // Remove static export to allow dynamic rendering and Route Handlers
   eslint: {
     ignoreDuringBuilds: true,
   },

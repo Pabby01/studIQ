@@ -1,6 +1,8 @@
 'use client';
 
-import { BookOpen, DollarSign, MapPin, User } from 'lucide-react';
+import { BookOpen, DollarSign, MapPin, User, Wallet } from 'lucide-react';
+import { WalletConnect } from '@/components/wallet/wallet-connect';
+import { WalletBalance } from '@/components/wallet/wallet-balance';
 import { TabType } from './main-layout';
 
 interface MobileNavigationProps {
@@ -9,6 +11,17 @@ interface MobileNavigationProps {
 }
 
 const NAV_ITEMS = [
+  {
+    id: 'wallet' as TabType,
+    label: 'Wallet',
+    icon: Wallet,
+    component: () => (
+      <div className="flex flex-col items-center space-y-2">
+        <WalletConnect />
+        <WalletBalance />
+      </div>
+    ),
+  },
   {
     id: 'learning' as TabType,
     label: 'Learning',

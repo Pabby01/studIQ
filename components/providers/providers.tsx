@@ -4,6 +4,15 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { User } from '@supabase/supabase-js';
+import { SolanaProvider } from './solana-provider';
+import { SolanaAgent } from '@/lib/solana-agent';
+import { useWallet } from '@solana/wallet-adapter-react';
+
+const useSolanaAgent = () => {
+  const wallet = useWallet();
+  const endpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+  return new SolanaAgent(endpoint, wallet);
+};
 
 interface AuthContextType {
   user: User | null;
@@ -11,6 +20,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<any>;
   signUp: (email: string, password: string, username: string) => Promise<any>;
   signOut: () => Promise<void>;
+  getAccessToken: () => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextType>({} as AuthContextType);
@@ -86,15 +96,23 @@ export function Providers({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const getAccessToken = async (): Promise<string | null> => {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
       loading,
       signIn,
       signUp,
-      signOut
+      signOut,
+      getAccessToken
     }}>
-      {children}
+      <SolanaProvider>
+        {children}
+      </SolanaProvider>
     </AuthContext.Provider>
   );
 }

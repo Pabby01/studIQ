@@ -5,6 +5,8 @@ import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Brain, Wallet, Users, User as UserIcon, Shield, Smartphone, CheckCircle2 } from 'lucide-react';
+import { LearningHub } from '@/components/features/learning-hub';
+import { FinanceHub } from '@/components/features/finance-hub';
 
 const featureMap: Record<string, { title: string; desc: string; icon: any; color: string; sections: { heading: string; body: string }[] }> = {
   'ai-learning': {
@@ -91,6 +93,14 @@ export default function FeatureDetail({ params }: { params: { slug: string } }) 
   const feature = featureMap[slug];
 
   if (!feature) return notFound();
+
+  // Render full interactive hubs when slugs match
+  if (slug === 'ai-learning') {
+    return <LearningHub />;
+  }
+  if (slug === 'finance-hub') {
+    return <FinanceHub />;
+  }
 
   const Icon = feature.icon;
 

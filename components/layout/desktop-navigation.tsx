@@ -1,6 +1,8 @@
 'use client';
 
 import { BookOpen, DollarSign, MapPin, User, Bell, Search } from 'lucide-react';
+import { WalletConnect } from '@/components/wallet/wallet-connect';
+import { WalletBalance } from '@/components/wallet/wallet-balance';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -63,7 +65,7 @@ export function DesktopNavigation({ activeTab, onTabChange }: DesktopNavigationP
             </nav>
           </div>
 
-          {/* Search and Profile */}
+          {/* Search, Wallet, and Profile */}
           <div className="flex items-center space-x-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -71,6 +73,11 @@ export function DesktopNavigation({ activeTab, onTabChange }: DesktopNavigationP
                 placeholder="Search..."
                 className="pl-10 w-64"
               />
+            </div>
+
+            <div className="flex items-center space-x-4">
+              <WalletBalance />
+              <WalletConnect />
             </div>
             
             <Button variant="ghost" size="sm">
