@@ -5,7 +5,8 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { SolanaAgent } from '@/lib/solana-agent';
 
 export const WalletBalance: FC = () => {
-  const { publicKey } = useWallet();
+  const wallet = useWallet();
+  const { publicKey } = wallet;
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -18,7 +19,7 @@ export const WalletBalance: FC = () => {
 
       try {
         setLoading(true);
-        const agent = new SolanaAgent('https://api.devnet.solana.com');
+        const agent = new SolanaAgent(wallet, process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
         const bal = await agent.getBalance(publicKey.toString());
         setBalance(bal);
       } catch (error) {
@@ -30,11 +31,9 @@ export const WalletBalance: FC = () => {
     };
 
     fetchBalance();
-    // Set up an interval to refresh the balance
-    const interval = setInterval(fetchBalance, 30000); // Every 30 seconds
-
+    const interval = setInterval(fetchBalance, 30000);
     return () => clearInterval(interval);
-  }, [publicKey]);
+  }, [publicKey, wallet]);
 
   if (!publicKey) return null;
 

@@ -11,7 +11,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 const useSolanaAgent = () => {
   const wallet = useWallet();
   const endpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
-  return new SolanaAgent(endpoint, wallet);
+  return new SolanaAgent(wallet, endpoint);
 };
 
 interface AuthContextType {

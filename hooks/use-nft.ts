@@ -2,7 +2,6 @@ import { useCallback, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { Connection, PublicKey } from '@solana/web3.js';
 import { SolanaAgent } from '@/lib/solana-agent';
-import { NFTPlugin } from '@solana-agent-kit/plugin-nft';
 
 export interface NFTMetadata {
   name: string;
@@ -16,7 +15,7 @@ export interface NFTMetadata {
 }
 
 export const useNFT = () => {
-  const { publicKey, signTransaction } = useWallet();
+  const { publicKey, signTransaction, signAllTransactions } = useWallet();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +24,7 @@ export const useNFT = () => {
   const fetchUserNFTs = useCallback(async () => {
     if (!publicKey) {
       setError('Wallet not connected');
-      return [];
+      return [] as Array<any>;
     }
 
     try {
@@ -34,13 +33,13 @@ export const useNFT = () => {
 
       const agent = SolanaAgent.create({
         publicKey,
-        signTransaction,
+        signTransaction: signTransaction!,
+        signAllTransactions: signAllTransactions!,
       } as any);
 
-      const nftPlugin = agent.use(NFTPlugin);
-      const nfts = await nftPlugin.fetchNFTs(publicKey);
+      const nfts = await agent.fetchNFTs(publicKey as PublicKey);
 
-      return nfts.map(nft => ({
+      return (nfts as any[]).map((nft: any) => ({
         name: nft.metadata.name,
         symbol: nft.metadata.symbol,
         description: nft.metadata.description,
@@ -51,16 +50,16 @@ export const useNFT = () => {
     } catch (err) {
       console.error('Error fetching NFTs:', err);
       setError('Failed to fetch NFTs');
-      return [];
+      return [] as Array<any>;
     } finally {
       setLoading(false);
     }
-  }, [publicKey, connection]);
+  }, [publicKey, connection, signTransaction, signAllTransactions]);
 
   const mintNFT = useCallback(async (metadata: NFTMetadata) => {
-    if (!publicKey || !signTransaction) {
+    if (!publicKey || !signTransaction || !signAllTransactions) {
       setError('Wallet not connected');
-      return null;
+      return null as { mint: string; metadata: any } | null;
     }
 
     try {
@@ -69,14 +68,13 @@ export const useNFT = () => {
 
       const agent = SolanaAgent.create({
         publicKey,
-        signTransaction,
+        signTransaction: signTransaction!,
+        signAllTransactions: signAllTransactions!,
       } as any);
 
-      const nftPlugin = agent.use(NFTPlugin);
-      
-      const { mint, metadata: mintedMetadata } = await nftPlugin.mintNFT({
+      const { mint, metadata: mintedMetadata } = await agent.mintNFT({
         name: metadata.name,
-        symbol: 'ACHV',
+        symbol: metadata.symbol || 'ACHV',
         description: metadata.description,
         image: metadata.image,
         attributes: metadata.attributes,
@@ -93,7 +91,7 @@ export const useNFT = () => {
     } finally {
       setLoading(false);
     }
-  }, [publicKey, signTransaction, connection]);
+  }, [publicKey, signTransaction, signAllTransactions, connection]);
 
   return {
     loading,

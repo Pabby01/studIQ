@@ -38,6 +38,7 @@ export const AchievementNFT: FC<AchievementNFTProps> = ({
 
       const metadata = {
         name: achievementName,
+        symbol: 'ACHV',
         description,
         image: imageUrl,
         attributes: [
@@ -53,6 +54,10 @@ export const AchievementNFT: FC<AchievementNFTProps> = ({
       };
 
       const result = await mintWithMetaplex(metadata);
+      if (!result) {
+        toast({ title: 'Mint failed', description: 'Could not mint the achievement NFT. Please try again.' });
+        return;
+      }
       
       toast({
         title: 'Success!',

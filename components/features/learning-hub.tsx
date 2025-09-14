@@ -5,6 +5,9 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
+import { RealtimeChannel, type RealtimePostgresChangesPayload } from '@supabase/supabase-js';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
   BookOpen,
   Upload,
@@ -14,36 +17,28 @@ import {
   Play,
   TrendingUp,
   Clock,
-  Star
+  Star,
+  Loader2
 } from 'lucide-react';
 import { useAuth } from '@/components/providers/providers';
 
-const RECENT_COURSES = [
-  {
-    id: 1,
-    title: 'Calculus II',
-    progress: 75,
-    lastStudied: '2 hours ago',
-    totalLessons: 24,
-    completedLessons: 18
-  },
-  {
-    id: 2,
-    title: 'Computer Science Fundamentals',
-    progress: 45,
-    lastStudied: '1 day ago',
-    totalLessons: 32,
-    completedLessons: 14
-  },
-  {
-    id: 3,
-    title: 'Physics - Mechanics',
-    progress: 88,
-    lastStudied: '3 hours ago',
-    totalLessons: 20,
-    completedLessons: 17
-  }
-];
+interface Material {
+  id: string;
+  title: string;
+  summary: string | null;
+  quiz: string | null;
+  file_url: string | null;
+  created_at: string;
+}
+
+interface Course {
+  id: string;
+  title: string;
+  progress: number;
+  last_studied: string;
+  total_lessons: number;
+  completed_lessons: number;
+}
 
 const AI_FEATURES = [
   {
@@ -70,14 +65,20 @@ export function LearningHub() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [textContent, setTextContent] = useState('');
-  const [materials, setMaterials] = useState<any[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { getAccessToken, user } = useAuth();
+  const { toast } = useToast();
+  const supabase = createClientComponentClient();
+  const realtimeChannel = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
-    const load = async () => {
+    const loadMaterials = async () => {
       try {
+        setLoading(true);
         const token = await getAccessToken();
         const res = await fetch('/api/materials', {
           headers: {
@@ -85,53 +86,185 @@ export function LearningHub() {
             ...(token ? { Authorization: `Bearer ${token}` } : {})
           }
         });
-        if (!res.ok) return;
+        if (!res.ok) {
+          throw new Error('Failed to load materials');
+        }
         const json = await res.json();
         setMaterials(json.items || []);
-      } catch {}
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load materials. Please try again.',
+          variant: 'destructive'
+        });
+      } finally {
+        setLoading(false);
+      }
     };
-    load();
-  }, [getAccessToken]);
+
+    const loadCourses = async () => {
+      try {
+        const token = await getAccessToken();
+        const res = await fetch('/api/courses', {
+          headers: {
+            'content-type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
+        });
+        if (!res.ok) {
+          throw new Error('Failed to load courses');
+        }
+        const json = await res.json();
+        setCourses(json.items || []);
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to load courses. Please try again.',
+          variant: 'destructive'
+        });
+      }
+    };
+
+    const setupRealtimeSubscription = () => {
+      if (!user) return;
+
+      realtimeChannel.current = supabase
+        .channel(`materials_${user.id}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'course_materials',
+          filter: `user_id=eq.${user.id}`
+        }, (payload: RealtimePostgresChangesPayload<any>) => {
+          if (payload.eventType === 'INSERT') {
+            setMaterials((prev) => [payload.new as Material, ...prev]);
+          } else if (payload.eventType === 'DELETE') {
+            setMaterials((prev) => prev.filter((m) => m.id !== (payload as any).old.id));
+          } else if (payload.eventType === 'UPDATE') {
+            setMaterials((prev) =>
+              prev.map((m) => (m.id === (payload as any).new.id ? (payload.new as Material) : m))
+            );
+          }
+        })
+        .subscribe();
+
+      return () => {
+        realtimeChannel.current?.unsubscribe();
+      };
+    };
+
+    loadMaterials();
+    loadCourses();
+    const cleanup = setupRealtimeSubscription();
+
+    return () => {
+      cleanup?.();
+    };
+  }, [getAccessToken, user, toast, supabase]);
 
   const onChooseFile = () => fileInputRef.current?.click();
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
+    if (!file) return;
+
+    if (!['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.type)) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please upload a PDF, DOCX, or TXT file.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Maximum file size is 10MB.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setSelectedFile(file);
-    // Optional: if plain text, read to textContent
-    if (file && file.type === 'text/plain') {
-      const text = await file.text();
-      setTextContent(text);
-      if (!title) setTitle(file.name.replace(/\.[^/.]+$/, ''));
+    if (file.type === 'text/plain') {
+      try {
+        const text = await file.text();
+        setTextContent(text);
+        if (!title) setTitle(file.name.replace(/\.[^/.]+$/, ''));
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to read file content.',
+          variant: 'destructive'
+        });
+      }
     }
   };
 
   const onSubmit = async () => {
+    if (!title && !textContent && !selectedFile) {
+      toast({
+        title: 'Missing content',
+        description: 'Please provide a title, text content, or upload a file.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     try {
-      setLoading(true);
+      setIsUploading(true);
       const token = await getAccessToken();
+
+      let fileUrl = null;
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: formData
+        });
+        if (!uploadRes.ok) throw new Error('Failed to upload file');
+        const { url } = await uploadRes.json();
+        fileUrl = url;
+      }
+
       const res = await fetch('/api/materials', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ title: title || undefined, textContent: textContent || undefined })
+        body: JSON.stringify({
+          title: title || undefined,
+          textContent: textContent || undefined,
+          fileUrl
+        })
       });
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || 'Failed to save');
       }
-      const json = await res.json();
-      setMaterials((prev) => [json.item, ...prev]);
+
+      toast({
+        title: 'Success',
+        description: 'Material uploaded successfully!'
+      });
+
       setTitle('');
       setTextContent('');
       setSelectedFile(null);
-    } catch (e) {
-      console.error(e);
-      alert((e as any)?.message || 'Failed to save material');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to save material',
+        variant: 'destructive'
+      });
     } finally {
-      setLoading(false);
+      setIsUploading(false);
     }
   };
 
@@ -156,13 +289,19 @@ export function LearningHub() {
             </div>
 
             <div className="grid gap-3 mb-4">
-              <Input placeholder="Title (optional)" value={title} onChange={(e) => setTitle(e.target.value)} />
+              <Input
+                placeholder="Title (optional)"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={isUploading}
+              />
               <div>
                 <textarea
                   placeholder="Paste text content to summarize (optional)"
                   value={textContent}
                   onChange={(e) => setTextContent(e.target.value)}
                   className="w-full min-h-[120px] p-3 border rounded-md text-sm"
+                  disabled={isUploading}
                 />
               </div>
             </div>
@@ -175,13 +314,31 @@ export function LearningHub() {
               <p className="text-sm text-gray-500 mb-4">
                 Supports PDF, DOCX, TXT files up to 10MB
               </p>
-              <input ref={fileInputRef} type="file" className="hidden" onChange={onFileChange} />
-              <Button onClick={onChooseFile} disabled={loading}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.docx,.txt"
+                className="hidden"
+                onChange={onFileChange}
+                disabled={isUploading}
+              />
+              <Button onClick={onChooseFile} disabled={isUploading}>
                 <Upload className="w-4 h-4 mr-2" />
                 {selectedFile ? selectedFile.name : 'Choose Files'}
               </Button>
-              <Button className="ml-3" onClick={onSubmit} disabled={loading}>
-                {loading ? 'Saving...' : 'Save'}
+              <Button
+                className="ml-3"
+                onClick={onSubmit}
+                disabled={isUploading}
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  'Upload'
+                )}
               </Button>
             </div>
           </Card>
@@ -193,8 +350,19 @@ export function LearningHub() {
               {AI_FEATURES.map((feature, index) => {
                 const Icon = feature.icon;
                 return (
-                  <div key={index} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
-                    <div className={`w-10 h-10 ${feature.color} rounded-lg flex items-center justify-center mb-3`}>
+                  <div
+                    key={index}
+                    className="p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => {
+                      toast({
+                        title: 'Coming Soon',
+                        description: `${feature.title} will be available soon!`
+                      });
+                    }}
+                  >
+                    <div
+                      className={`w-10 h-10 ${feature.color} rounded-lg flex items-center justify-center mb-3`}
+                    >
                       <Icon className="w-5 h-5 text-white" />
                     </div>
                     <h3 className="font-medium mb-1">{feature.title}</h3>
@@ -211,33 +379,48 @@ export function LearningHub() {
               <h2 className="text-lg font-semibold">Continue Learning</h2>
               <Button variant="ghost" size="sm">View All</Button>
             </div>
-            
-            <div className="space-y-4">
-              {RECENT_COURSES.map((course) => (
-                <div key={course.id} className="flex items-center space-x-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <BookOpen className="w-6 h-6 text-blue-600" />
-                  </div>
-                  
-                  <div className="flex-1">
-                    <h3 className="font-medium mb-1">{course.title}</h3>
-                    <div className="flex items-center space-x-4 text-sm text-gray-600">
-                      <span className="flex items-center">
-                        <Clock className="w-3 h-3 mr-1" />
-                        {course.lastStudied}
-                      </span>
-                      <span>{course.completedLessons}/{course.totalLessons} lessons</span>
+
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+              </div>
+            ) : courses.length > 0 ? (
+              <div className="space-y-4">
+                {courses.map((course) => (
+                  <div
+                    key={course.id}
+                    className="flex items-center space-x-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <BookOpen className="w-6 h-6 text-blue-600" />
                     </div>
-                    <Progress value={course.progress} className="mt-2 h-2" />
+
+                    <div className="flex-1">
+                      <h3 className="font-medium mb-1">{course.title}</h3>
+                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                        <span className="flex items-center">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {course.last_studied}
+                        </span>
+                        <span>
+                          {course.completed_lessons}/{course.total_lessons} lessons
+                        </span>
+                      </div>
+                      <Progress value={course.progress} className="mt-2 h-2" />
+                    </div>
+
+                    <Button size="sm">
+                      <Play className="w-4 h-4 mr-1" />
+                      Continue
+                    </Button>
                   </div>
-                  
-                  <Button size="sm">
-                    <Play className="w-4 h-4 mr-1" />
-                    Continue
-                  </Button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No courses available. Start by uploading some materials!
+              </div>
+            )}
           </Card>
         </div>
 
@@ -246,70 +429,28 @@ export function LearningHub() {
           {/* Study Stats */}
           <Card className="p-6">
             <h3 className="font-semibold mb-4">Study Statistics</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Study Streak</span>
-                <div className="flex items-center">
-                  <span className="text-lg font-semibold text-orange-600 mr-1">7</span>
-                  <span className="text-sm text-gray-600">days</span>
+            {loading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Materials Uploaded</span>
+                  <span className="font-medium">{materials.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Active Courses</span>
+                  <span className="font-medium">{courses.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Study Streak</span>
+                  <span className="font-medium flex items-center">
+                    <Star className="w-4 h-4 text-yellow-500 mr-1" /> 5 days
+                  </span>
                 </div>
               </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Hours This Week</span>
-                <span className="text-lg font-semibold text-blue-600">12.5</span>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Courses Completed</span>
-                <span className="text-lg font-semibold text-green-600">3</span>
-              </div>
-            </div>
-          </Card>
-
-          {/* Achievements */}
-          <Card className="p-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <Award className="w-5 h-5 text-yellow-600" />
-              <h3 className="font-semibold">Recent Achievements</h3>
-            </div>
-            
-            <div className="space-y-3">
-              <div className="flex items-center space-x-3 p-3 bg-yellow-50 rounded-lg">
-                <Star className="w-5 h-5 text-yellow-600" />
-                <div>
-                  <p className="font-medium text-sm">Quiz Master</p>
-                  <p className="text-xs text-gray-600">Scored 90%+ on 5 quizzes</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
-                <Brain className="w-5 h-5 text-blue-600" />
-                <div>
-                  <p className="font-medium text-sm">AI Explorer</p>
-                  <p className="text-xs text-gray-600">Used AI features 20 times</p>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          {/* Quick Actions */}
-          <Card className="p-6">
-            <h3 className="font-semibold mb-4">Quick Actions</h3>
-            <div className="space-y-2">
-              <Button variant="outline" className="w-full justify-start">
-                <Brain className="w-4 h-4 mr-2" />
-                Generate Quiz
-              </Button>
-              <Button variant="outline" className="w-full justify-start">
-                <FileText className="w-4 h-4 mr-2" />
-                Create Summary
-              </Button>
-              <Button variant="outline" className="w-full justify-start">
-                <Award className="w-4 h-4 mr-2" />
-                View NFT Badges
-              </Button>
-            </div>
+            )}
           </Card>
         </div>
       </div>
