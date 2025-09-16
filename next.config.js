@@ -5,6 +5,7 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   images: { unoptimized: true },
+  optimizeFonts: true,
   webpack: (config) => {
     config.ignoreWarnings = [
       ...(config.ignoreWarnings || []),

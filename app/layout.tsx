@@ -7,7 +7,10 @@ const inter = Inter({
   subsets: ['latin'],
   preload: true,
   display: 'swap',
-  adjustFontFallback: false
+  fallback: ['system-ui', 'arial'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-inter',
+  adjustFontFallback: true
 });
 
 export const metadata: Metadata = {
@@ -21,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <body className={inter.className}>
         <Providers>
           {children}
