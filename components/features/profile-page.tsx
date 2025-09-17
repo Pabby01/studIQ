@@ -25,7 +25,8 @@ import {
   DollarSign,
   Upload,
   Save,
-  X
+  X,
+  CheckCircle2,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
@@ -419,6 +420,123 @@ const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
     </div>
   );
 
+  // Achievements realtime state
+  const supabase = createClientComponentClient();
+  const [achievements, setAchievements] = useState<Array<{ id: string; title: string; description: string; done: boolean; date?: string }>>([]);
+  const [txs, setTxs] = useState<any[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Initial load for achievements sources
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        const headers: HeadersInit = { 'content-type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+        const [tRes, mRes] = await Promise.all([
+          fetch('/api/transactions', { headers }),
+          fetch('/api/materials', { headers })
+        ]);
+        const tJson = tRes.ok ? await tRes.json() : { items: [] };
+        const mJson = mRes.ok ? await mRes.json() : { items: [] };
+        setTxs(tJson.items || []);
+        setMaterials(mJson.items || []);
+      } catch (e) {
+        // no-op
+      }
+    })();
+  }, [getAccessToken]);
+
+  useEffect(() => {
+    // Compute achievements when sources change
+    const compute = () => {
+      const now = new Date();
+      const toDayKey = (d: Date | string) => {
+        const dd = typeof d === 'string' ? new Date(d) : d;
+        return dd.getFullYear() + '-' + (dd.getMonth() + 1) + '-' + dd.getDate();
+      };
+
+      // First DeFi Transaction
+      const hasAnyTx = (txs?.length || 0) > 0;
+      const firstTxDate = hasAnyTx ? new Date(txs[0]?.created_at || Date.now()) : undefined;
+
+      // Course Completion (>= 95% progress on any material)
+      const completedCourse = (materials || []).some((m: any) => Number(m.progress) >= 95);
+      const completedCourseDate = (materials || [])
+        .filter((m: any) => Number(m.progress) >= 95)
+        .sort((a: any, b: any) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime())[0];
+
+      // 7-Day Study Streak (any activity across 7 consecutive days using created_at/updated_at)
+      const days = new Set<string>();
+      (materials || []).forEach((m: any) => {
+        const t = m.updated_at || m.created_at;
+        if (t) days.add(toDayKey(t));
+      });
+      let streak = 0;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        if (days.has(toDayKey(d))) streak += 1; else break;
+      }
+      const hasStreak = streak >= 7;
+
+      const next: Array<{ id: string; title: string; description: string; done: boolean; date?: string }> = [
+        {
+          id: 'streak-7',
+          title: '7-Day Study Streak',
+          description: 'Study activity recorded for 7 consecutive days',
+          done: hasStreak,
+          date: hasStreak ? new Date().toLocaleDateString() : undefined,
+        },
+        {
+          id: 'first-defi',
+          title: 'First DeFi Transaction',
+          description: 'Completed your first wallet transaction',
+          done: !!hasAnyTx,
+          date: firstTxDate ? firstTxDate.toLocaleDateString() : undefined,
+        },
+        {
+          id: 'course-complete',
+          title: 'Course Completion',
+          description: 'Completed a course with 95%+ progress',
+          done: !!completedCourse,
+          date: completedCourseDate ? new Date(completedCourseDate.updated_at || completedCourseDate.created_at).toLocaleDateString() : undefined,
+        },
+      ];
+      setAchievements(next);
+    };
+    compute();
+  }, [txs, materials]);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    const channel = supabase
+      .channel(`achievements-${profile.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${profile.id}` }, async () => {
+        try {
+          const token = await getAccessToken();
+          const res = await fetch('/api/transactions', { headers: { 'content-type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
+          if (res.ok) {
+            const json = await res.json();
+            setTxs(json.items || []);
+          }
+        } catch {}
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'course_materials', filter: `user_id=eq.${profile.id}` }, async () => {
+        try {
+          const token = await getAccessToken();
+          const res = await fetch('/api/materials', { headers: { 'content-type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
+          if (res.ok) {
+            const json = await res.json();
+            setMaterials(json.items || []);
+          }
+        } catch {}
+      })
+      .subscribe();
+    return () => {
+      try { supabase.removeChannel(channel); } catch {}
+    };
+  }, [profile?.id, supabase, getAccessToken]);
+
   const renderAchievementsSection = () => (
     <div className="space-y-6">
       {/* NFT Badges */}
@@ -427,7 +545,6 @@ const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
           <Award className="w-5 h-5 text-yellow-600" />
           <h2 className="text-lg font-semibold">NFT Badges</h2>
         </div>
-        
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {NFT_BADGES.map((badge) => (
             <div key={badge.id} className="border rounded-lg p-4 text-center">
@@ -441,22 +558,26 @@ const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
         </div>
       </Card>
 
-      {/* Recent Achievements */}
+      {/* Real-time Achievements */}
       <Card className="p-6">
-        <h2 className="text-lg font-semibold mb-4">Recent Achievements</h2>
+        <h2 className="text-lg font-semibold mb-4">Achievements</h2>
         <div className="space-y-3">
-          {ACHIEVEMENTS.map((achievement) => (
-            <div key={achievement.id} className="flex items-center space-x-4 p-3 border rounded-lg">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <Award className="w-5 h-5 text-blue-600" />
+          {achievements.map((a) => (
+            <div key={a.id} className="flex items-center space-x-4 p-3 border rounded-lg">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center ${a.done ? 'bg-green-100' : 'bg-gray-100'}`}>
+                <CheckCircle2 className={`w-5 h-5 ${a.done ? 'text-green-600' : 'text-gray-400'}`} />
               </div>
               <div className="flex-1">
-                <h3 className="font-medium">{achievement.title}</h3>
-                <p className="text-sm text-gray-600">{achievement.description}</p>
+                <h3 className="font-medium">{a.title}</h3>
+                <p className="text-sm text-gray-600">{a.description}</p>
               </div>
-              <span className="text-sm text-gray-500">{achievement.date}</span>
+              <Badge variant={a.done ? 'default' : 'secondary'} className="mr-2">{a.done ? 'Done' : 'Not Done'}</Badge>
+              {a.date ? <span className="text-sm text-gray-500">{a.date}</span> : null}
             </div>
           ))}
+          {achievements.length === 0 && (
+            <div className="text-sm text-gray-600">No achievements yet.</div>
+          )}
         </div>
       </Card>
     </div>
