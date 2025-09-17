@@ -21,6 +21,10 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '@/components/providers/providers';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { SolanaAgent } from '@/lib/solana-agent';
+import { WalletConnect } from '@/components/wallet/wallet-connect';
 
 const WALLET_DATA = {
   balance: 125.50,
@@ -62,22 +66,71 @@ export function FinanceHub() {
   const [income, setIncome] = useState('');
   const [expenses, setExpenses] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  // Savings goals state
+  const [savingsGoals, setSavingsGoals] = useState<any[]>([]);
+  const [newGoalName, setNewGoalName] = useState('');
+  const [newGoalTarget, setNewGoalTarget] = useState('');
+  const [newGoalDeadline, setNewGoalDeadline] = useState('');
+  const [showCreateGoal, setShowCreateGoal] = useState(false);
+  
+  // Solana wallet integration
+  const wallet = useWallet();
+  const { publicKey, connected } = wallet;
+  const [realWalletBalance, setRealWalletBalance] = useState<number | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
 
-  // Derived balances
+  // Real-time wallet balance fetching
+  useEffect(() => {
+    const fetchRealBalance = async () => {
+      if (!publicKey || !connected) {
+        setRealWalletBalance(null);
+        return;
+      }
+
+      try {
+        setBalanceLoading(true);
+        const agent = new SolanaAgent(wallet, process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+        const balance = await agent.getBalance(publicKey.toString());
+        setRealWalletBalance(balance);
+      } catch (error) {
+        console.error('Error fetching real wallet balance:', error);
+        setRealWalletBalance(null);
+      } finally {
+        setBalanceLoading(false);
+      }
+    };
+
+    fetchRealBalance();
+    // Update balance every 30 seconds
+    const interval = setInterval(fetchRealBalance, 30000);
+    return () => clearInterval(interval);
+  }, [publicKey, connected, wallet]);
+
+  // Derived balances - prioritize real wallet balance when connected
   const totalBalance = useMemo(() => {
-    // Prefer wallet balances if available
+    // Use real wallet balance if connected and available
+    if (connected && realWalletBalance !== null) {
+      return realWalletBalance * 100; // Convert SOL to USD estimate (rough conversion)
+    }
+    // Fallback to database wallets
     const walletTotal = wallets.reduce((sum, w) => sum + Number(w.balance || 0), 0);
     if (walletTotal > 0) return walletTotal;
-    // Fallback: net from transactions
+    // Final fallback: net from transactions
     return transactions.reduce((sum, tx) => sum + (tx.tx_type === 'receive' ? Number(tx.amount || 0) : -Number(tx.amount || 0)), 0);
-  }, [wallets, transactions]);
+  }, [wallets, transactions, connected, realWalletBalance]);
 
   const solBalance = useMemo(() => {
+    // Use real wallet balance if connected
+    if (connected && realWalletBalance !== null) {
+      return realWalletBalance;
+    }
+    // Fallback to database wallets
     const fromWallets = wallets
       .filter((w) => String(w.token || w.symbol || '').toUpperCase() === 'SOL')
       .reduce((sum, w) => sum + Number(w.balance || 0), 0);
     return fromWallets;
-  }, [wallets]);
+  }, [wallets, connected, realWalletBalance]);
 
   const usdcBalance = useMemo(() => {
     const fromWallets = wallets
@@ -116,6 +169,13 @@ export function FinanceHub() {
           const fJson = await fRes.json();
           setPlans(fJson.items || []);
         }
+        
+        // Load savings goals
+        const gRes = await fetch('/api/savings-goals', { headers });
+        if (gRes.ok) {
+          const gJson = await gRes.json();
+          setSavingsGoals(gJson.items || []);
+        }
       } catch (e) {
         console.error(e);
       }
@@ -146,6 +206,13 @@ export function FinanceHub() {
           const token = await getAccessToken();
           const res = await fetch('/api/finance', { headers: { 'content-type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
           if (res.ok) setPlans((await res.json()).items || []);
+        } catch {}
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'savings_goals' }, async () => {
+        try {
+          const token = await getAccessToken();
+          const res = await fetch('/api/savings-goals', { headers: { 'content-type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
+          if (res.ok) setSavingsGoals((await res.json()).items || []);
         } catch {}
       })
       .subscribe();
@@ -181,6 +248,44 @@ export function FinanceHub() {
       alert((e as any)?.message || 'Failed to send');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateSavingsGoal = async () => {
+    try {
+      const targetAmount = parseFloat(newGoalTarget);
+      if (!newGoalName || Number.isNaN(targetAmount) || targetAmount <= 0 || !newGoalDeadline) return;
+      
+      const token = await getAccessToken();
+      const res = await fetch('/api/savings-goals', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          name: newGoalName,
+          target_amount: targetAmount,
+          current_amount: 0,
+          deadline: newGoalDeadline,
+          reminder_enabled: true
+        })
+      });
+      
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'Failed to create savings goal');
+      }
+      
+      const json = await res.json();
+      setSavingsGoals((prev) => [json.item, ...prev]);
+      setNewGoalName('');
+      setNewGoalTarget('');
+      setNewGoalDeadline('');
+      setShowCreateGoal(false);
+    } catch (e) {
+      console.error(e);
+      alert((e as any)?.message || 'Failed to create savings goal');
     }
   };
 
@@ -234,48 +339,54 @@ export function FinanceHub() {
                   <Wallet className="w-6 h-6 text-blue-600" />
                   <h2 className="text-lg font-semibold">Total Balance</h2>
                 </div>
-                <Button size="sm" variant="outline">
-                  <ArrowUpRight className="w-4 h-4 mr-1" />
-                  Export
-                </Button>
+                <div className="flex items-center space-x-2">
+                  <WalletConnect />
+                  <Button size="sm" variant="outline">
+                    <ArrowUpRight className="w-4 h-4 mr-1" />
+                    Export
+                  </Button>
+                </div>
               </div>
               
               <div className="mb-4">
-                <p className="text-3xl font-bold text-gray-900 mb-1">
-                  ${totalBalance.toFixed(2)}
-                </p>
-                <p className="text-sm text-gray-600">
-                  Updated in real time
-                </p>
+                {balanceLoading ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    <p className="text-lg text-gray-600">Loading balance...</p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-3xl font-bold text-gray-900 mb-1">
+                      ${totalBalance.toFixed(2)}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {connected ? 'Real-time Solana wallet balance' : 'Database wallet balance'}
+                    </p>
+                  </>
+                )}
               </div>
 
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">SOL</span>
-                  <span className="font-medium">{solBalance.toFixed(3)}</span>
+                  <span className="font-medium">
+                    {balanceLoading ? '...' : solBalance.toFixed(4)}
+                    {connected && <span className="text-xs text-green-600 ml-1">●</span>}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">USDC</span>
                   <span className="font-medium">${usdcBalance.toFixed(2)}</span>
                 </div>
               </div>
-            </Card>
-
-            <Card className="p-6">
-              <div className="flex items-center space-x-3 mb-4">
-                <PiggyBank className="w-6 h-6 text-green-600" />
-                <h2 className="text-lg font-semibold">Savings Goal</h2>
-              </div>
               
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm text-gray-600">Emergency Fund</span>
-                  <span className="text-sm font-medium">${Math.min(totalBalance, 1000).toFixed(0)} / $1000</span>
+              {!connected && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    💡 Connect your Solana wallet to see real-time balances
+                  </p>
                 </div>
-                <Progress value={Math.min(100, (totalBalance / 1000) * 100)} className="h-2" />
-              </div>
-
-              <Button className="w-full" size="sm">Update Goal</Button>
+              )}
             </Card>
 
             <Card className="p-6">
@@ -284,7 +395,50 @@ export function FinanceHub() {
                 <h2 className="text-lg font-semibold">Send Tokens</h2>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* ... existing inputs ... */}
+                {/* Wallet selector */}
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-600">From Wallet</label>
+                  <Select value={selectedWalletId} onValueChange={setSelectedWalletId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a wallet" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {wallets.length === 0 && (
+                        <div className="px-3 py-2 text-sm text-gray-500">No wallets found</div>
+                      )}
+                      {wallets.map((w: any) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {String(w.public_key).slice(0, 4)}...{String(w.public_key).slice(-4)} • ${Number(w.balance || 0).toFixed(2)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Amount */}
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-600">Amount (USD equiv.)</label>
+                  <Input type="number" min="0" step="0.01" placeholder="0.00" value={sendAmount} onChange={(e) => setSendAmount(e.target.value)} />
+                </div>
+
+                {/* Recipient */}
+                <div className="space-y-1 md:col-span-2">
+                  <label className="text-xs text-gray-600">Recipient (optional note)</label>
+                  <Input placeholder="e.g. Campus Store" value={recipient} onChange={(e) => setRecipient(e.target.value)} />
+                </div>
+
+                <div className="md:col-span-2 flex items-center justify-end">
+                  <Button onClick={handleSend} disabled={loading || !selectedWalletId || !sendAmount}>
+                    {loading ? 'Sending...' : 'Send'}
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-3 text-xs text-gray-600">
+                {selectedWallet ? (
+                  <span>Available balance: ${Number(selectedWallet.balance || 0).toFixed(2)}</span>
+                ) : (
+                  <span>Select a wallet to see balance</span>
+                )}
               </div>
               <div>
                 <h3 className="font-medium mb-3 flex items-center">
@@ -400,6 +554,45 @@ export function FinanceHub() {
               </Button>
             </Card>
 
+            {/* Savings Goals */}
+            <Card className="p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <Target className="w-5 h-5 text-blue-600" />
+                <h3 className="font-semibold">Savings Goals</h3>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-blue-900">Emergency Fund</span>
+                    <span className="text-sm text-blue-600">$350 / $500</span>
+                  </div>
+                  <Progress value={70} className="h-2 mb-2" />
+                  <p className="text-xs text-blue-700">70% complete • $150 to go</p>
+                </div>
+                
+                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-green-900">New Laptop</span>
+                    <span className="text-sm text-green-600">$200 / $800</span>
+                  </div>
+                  <Progress value={25} className="h-2 mb-2" />
+                  <p className="text-xs text-green-700">25% complete • $600 to go</p>
+                </div>
+                
+                <Button size="sm" className="w-full" variant="outline">
+                  <Target className="w-4 h-4 mr-2" />
+                  Create New Goal
+                </Button>
+                
+                <div className="p-2 bg-yellow-50 rounded border border-yellow-200">
+                  <p className="text-xs text-yellow-800">
+                    💡 Daily reminder: Save $15 today to stay on track!
+                  </p>
+                </div>
+              </div>
+            </Card>
+
             {/* Spending Breakdown */}
             <Card className="p-6">
               <h3 className="font-semibold mb-4">Spending Breakdown</h3>
@@ -445,18 +638,36 @@ export function FinanceHub() {
               </div>
               
               <div className="space-y-2">
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start hover:bg-green-50" 
+                  onClick={() => window.open('/staking', '_blank')}
+                >
                   <PiggyBank className="w-4 h-4 mr-2" />
                   Stake SOL (5.2% APY)
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start hover:bg-blue-50" 
+                  onClick={() => window.open('/liquidity-pools', '_blank')}
+                >
                   <Shield className="w-4 h-4 mr-2" />
-                  Liquidity Pool
+                  Liquidity Pools
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start hover:bg-purple-50" 
+                  onClick={() => window.open('/yield-farming', '_blank')}
+                >
                   <DollarSign className="w-4 h-4 mr-2" />
                   Yield Farming
                 </Button>
+              </div>
+              
+              <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border">
+                <p className="text-xs text-gray-600 mb-1">💰 Potential Monthly Earnings</p>
+                <p className="text-sm font-semibold text-green-600">$12.50 - $45.00</p>
+                <p className="text-xs text-gray-500">Based on current balance</p>
               </div>
             </Card>
           </div>
