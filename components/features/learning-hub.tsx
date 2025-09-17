@@ -21,14 +21,17 @@ import {
   Loader2
 } from 'lucide-react';
 import { useAuth } from '@/components/providers/providers';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { useRouter } from 'next/navigation';
 
 interface Material {
   id: string;
   title: string;
   summary: string | null;
-  quiz: string | null;
+  quiz: any | null;
   file_url: string | null;
   created_at: string;
+  progress?: number | null;
 }
 
 interface Course {
@@ -42,24 +45,29 @@ interface Course {
 
 const AI_FEATURES = [
   {
+    key: 'summary' as const,
     title: 'Smart Summaries',
     description: 'AI-generated summaries from your course materials',
     icon: Brain,
     color: 'bg-blue-500'
   },
   {
+    key: 'quiz' as const,
     title: 'Quiz Generator',
     description: 'Personalized quizzes based on your content',
     icon: FileText,
     color: 'bg-purple-500'
   },
   {
+    key: 'insights' as const,
     title: 'Study Insights',
     description: 'Track your learning patterns and progress',
     icon: TrendingUp,
     color: 'bg-green-500'
   }
 ];
+
+type FeatureType = 'summary' | 'quiz' | 'insights';
 
 export function LearningHub() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -69,11 +77,18 @@ export function LearningHub() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [featureOpen, setFeatureOpen] = useState(false);
+  const [featureType, setFeatureType] = useState<FeatureType | null>(null);
+  const [activeMaterialId, setActiveMaterialId] = useState<string>('');
+  const [activeMaterial, setActiveMaterial] = useState<Material | null>(null);
+  const [quizAnswers, setQuizAnswers] = useState<string[]>([]);
+  const [quizResult, setQuizResult] = useState<{ score: number; correct: boolean[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { getAccessToken, user } = useAuth();
   const { toast } = useToast();
   const supabase = createClientComponentClient();
   const realtimeChannel = useRef<RealtimeChannel | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const loadMaterials = async () => {
@@ -215,9 +230,20 @@ export function LearningHub() {
     try {
       setIsUploading(true);
       const token = await getAccessToken();
+      console.debug('[LearningHub] Starting upload', {
+        tokenPresent: !!token,
+        titleLength: title?.length || 0,
+        textLength: textContent?.length || 0,
+        hasFile: !!selectedFile
+      });
 
-      let fileUrl = null;
+      let fileUrl = null as string | null;
       if (selectedFile) {
+        console.debug('[LearningHub] Uploading file', {
+          name: selectedFile.name,
+          type: selectedFile.type,
+          size: selectedFile.size
+        });
         const formData = new FormData();
         formData.append('file', selectedFile);
         const uploadRes = await fetch('/api/upload', {
@@ -225,27 +251,77 @@ export function LearningHub() {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           body: formData
         });
-        if (!uploadRes.ok) throw new Error('Failed to upload file');
-        const { url } = await uploadRes.json();
+        let uploadText = '';
+        try {
+          uploadText = await uploadRes.text();
+        } catch (e) {
+          console.warn('[LearningHub] Could not read upload response text', e);
+        }
+        console.debug('[LearningHub] /api/upload response', {
+          status: uploadRes.status,
+          ok: uploadRes.ok,
+          body: uploadText
+        });
+        if (!uploadRes.ok) {
+          try {
+            const parsed = uploadText ? JSON.parse(uploadText) : null;
+            throw new Error(parsed?.error ? `Upload failed: ${parsed.error}` : `Upload failed with status ${uploadRes.status}`);
+          } catch (err) {
+            if (err instanceof Error && !/Upload failed/.test(err.message)) {
+              // JSON parse failed; throw generic with status and body snippet
+              throw new Error(`Upload failed (${uploadRes.status}): ${uploadText?.slice(0, 300)}`);
+            }
+            throw err;
+          }
+        }
+        let uploadJson: any = {};
+        try {
+          uploadJson = uploadText ? JSON.parse(uploadText) : {};
+        } catch (e) {
+          console.warn('[LearningHub] Upload response was not valid JSON');
+        }
+        const { url } = uploadJson || {};
         fileUrl = url;
+        console.debug('[LearningHub] File uploaded, url:', fileUrl);
       }
 
+      const payload = {
+        title: title || undefined,
+        textContent: textContent || undefined,
+        fileUrl
+      };
+      console.debug('[LearningHub] Saving material via /api/materials', payload);
+
+      const materialToken = await getAccessToken();
       const res = await fetch('/api/materials', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({
-          title: title || undefined,
-          textContent: textContent || undefined,
-          fileUrl
-        })
+        body: JSON.stringify(payload)
+      });
+
+      let materialsText = '';
+      try {
+        materialsText = await res.text();
+      } catch (e) {
+        console.warn('[LearningHub] Could not read materials response text', e);
+      }
+      console.debug('[LearningHub] /api/materials response', {
+        status: res.status,
+        ok: res.ok,
+        body: materialsText
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || 'Failed to save');
+        try {
+          const err = materialsText ? JSON.parse(materialsText) : null;
+          throw new Error(err?.error || 'Failed to save');
+        } catch (err) {
+          if (err instanceof Error && err.message === 'Failed to save') throw err;
+          throw new Error(`Failed to save (${res.status}): ${materialsText?.slice(0, 300)}`);
+        }
       }
 
       toast({
@@ -258,6 +334,7 @@ export function LearningHub() {
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (error) {
+      console.error('[LearningHub] Upload flow error', error);
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to save material',
@@ -267,6 +344,70 @@ export function LearningHub() {
       setIsUploading(false);
     }
   };
+
+  const openFeature = (type: FeatureType) => {
+    setFeatureType(type);
+    setActiveMaterialId('');
+    setActiveMaterial(null);
+    setQuizAnswers([]);
+    setQuizResult(null);
+    setFeatureOpen(true);
+  };
+
+  const loadMaterial = async (id: string) => {
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(`/api/materials/${id}`, {
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      if (!res.ok) throw new Error('Failed to load material');
+      const json = await res.json();
+      const item = json.item as Material;
+      setActiveMaterial(item);
+      // initialize quiz answers length
+      const q = Array.isArray((item as any)?.quiz) ? (item as any).quiz : [];
+      setQuizAnswers(new Array(q.length).fill(''));
+      setQuizResult(null);
+    } catch (e) {
+      toast({ title: 'Error', description: 'Could not load material', variant: 'destructive' });
+    }
+  };
+
+  const gradeQuiz = async () => {
+    if (!activeMaterial) return;
+    const quiz: { q: string; a?: string }[] = Array.isArray((activeMaterial as any).quiz)
+      ? (activeMaterial as any).quiz
+      : [];
+    const correct = quiz.map((q, idx) => {
+      const userAns = (quizAnswers[idx] || '').trim().toLowerCase();
+      const ground = (q.a || '').trim().toLowerCase();
+      if (ground) return userAns === ground || (ground && userAns.includes(ground));
+      // Fallback: treat non-empty answers as correct when no ground truth is provided
+      return userAns.length > 0;
+    });
+    const score = Math.round((correct.filter(Boolean).length / (quiz.length || 1)) * 100);
+    setQuizResult({ score, correct: correct as boolean[] });
+
+    try {
+      const token = await getAccessToken();
+      // Update progress to reflect quiz completion/score
+      await fetch(`/api/materials/${activeMaterial.id}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ progress: score })
+      });
+    } catch (e) {
+      console.warn('Failed to update progress');
+    }
+  };
+
+  const quizzesCompleted = materials.filter((m) => (m?.progress ?? 0) >= 60).length;
 
   return (
     <div className="max-w-7xl mx-auto p-4 space-y-6">
@@ -353,12 +494,7 @@ export function LearningHub() {
                   <div
                     key={index}
                     className="p-4 border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => {
-                      toast({
-                        title: 'Coming Soon',
-                        description: `${feature.title} will be available soon!`
-                      });
-                    }}
+                    onClick={() => openFeature(feature.key)}
                   >
                     <div
                       className={`w-10 h-10 ${feature.color} rounded-lg flex items-center justify-center mb-3`}
@@ -409,7 +545,7 @@ export function LearningHub() {
                       <Progress value={course.progress} className="mt-2 h-2" />
                     </div>
 
-                    <Button size="sm">
+                    <Button size="sm" onClick={() => router.push(`/study/${course.id}`)}>
                       <Play className="w-4 h-4 mr-1" />
                       Continue
                     </Button>
@@ -444,6 +580,10 @@ export function LearningHub() {
                   <span className="font-medium">{courses.length}</span>
                 </div>
                 <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Quizzes Completed</span>
+                  <span className="font-medium">{quizzesCompleted}</span>
+                </div>
+                <div className="flex items-center justify-between">
                   <span className="text-gray-600">Study Streak</span>
                   <span className="font-medium flex items-center">
                     <Star className="w-4 h-4 text-yellow-500 mr-1" /> 5 days
@@ -454,6 +594,134 @@ export function LearningHub() {
           </Card>
         </div>
       </div>
+
+      {/* Feature Modal */}
+      <Dialog open={featureOpen} onOpenChange={setFeatureOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {featureType === 'summary' && 'Generate Summary'}
+              {featureType === 'quiz' && 'Generate & Take Quiz'}
+              {featureType === 'insights' && 'Study Insights'}
+            </DialogTitle>
+            <DialogDescription>
+              Select a material to proceed.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="material-select" className="block text-sm text-gray-600 mb-1">Material</label>
+              <select
+                id="material-select"
+                className="w-full border rounded-md p-2"
+                value={activeMaterialId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setActiveMaterialId(id);
+                  if (id) loadMaterial(id);
+                }}
+              >
+                <option value="">Select material…</option>
+                {materials.map((m) => (
+                  <option key={m.id} value={m.id}>{m.title}</option>
+                ))}
+              </select>
+            </div>
+
+            {featureType === 'summary' && (
+              <div className="space-y-2">
+                <h4 className="font-semibold">Summary</h4>
+                {activeMaterial ? (
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{activeMaterial.summary || 'No summary available for this material.'}</p>
+                ) : (
+                  <p className="text-sm text-gray-500">Choose a material to view its AI-generated summary.</p>
+                )}
+                {activeMaterial && (
+                  <Button variant="secondary" onClick={() => router.push(`/study/${activeMaterial.id}`)}>
+                    Open Study Page
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {featureType === 'insights' && (
+              <div className="space-y-3">
+                {activeMaterial ? (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span>Progress</span>
+                      <span className="font-medium">{Math.round(activeMaterial.progress ?? 0)}%</span>
+                    </div>
+                    <Progress value={activeMaterial.progress ?? 0} />
+                    <div className="flex items-center justify-between">
+                      <span>Questions available</span>
+                      <span className="font-medium">{Array.isArray((activeMaterial as any).quiz) ? (activeMaterial as any).quiz.length : 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Estimated reading time</span>
+                      <span className="font-medium">{Math.max(1, Math.ceil(((activeMaterial.summary || '').split(/\s+/).length || 120) / 200))} min</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">Choose a material to view insights.</p>
+                )}
+                {activeMaterial && (
+                  <Button variant="secondary" onClick={() => router.push(`/study/${activeMaterial.id}`)}>
+                    Continue Learning
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {featureType === 'quiz' && (
+              <div className="space-y-4">
+                {!activeMaterial && (
+                  <p className="text-sm text-gray-500">Choose a material to generate and take a quiz.</p>
+                )}
+                {activeMaterial && (
+                  <div className="space-y-3">
+                    {Array.isArray((activeMaterial as any).quiz) && (activeMaterial as any).quiz.length > 0 ? (
+                      <div className="space-y-3">
+                        {((activeMaterial as any).quiz as { q: string; a?: string }[]).map((q, idx) => (
+                          <div key={idx} className="space-y-1">
+                            <p className="font-medium">Q{idx + 1}. {q.q}</p>
+                            <Input
+                              placeholder="Your answer"
+                              value={quizAnswers[idx] || ''}
+                              onChange={(e) => {
+                                const next = [...quizAnswers];
+                                next[idx] = e.target.value;
+                                setQuizAnswers(next);
+                              }}
+                            />
+                            {quizResult && (
+                              <p className={`text-xs ${quizResult.correct[idx] ? 'text-green-600' : 'text-red-600'}`}>
+                                {quizResult.correct[idx] ? 'Correct' : q.a ? `Expected: ${q.a}` : 'Recorded'}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                        <div className="flex items-center gap-3 pt-2">
+                          <Button onClick={gradeQuiz}>Submit Quiz</Button>
+                          {quizResult && <span className="text-sm">Score: <span className="font-semibold">{quizResult.score}%</span></span>}
+                          {quizResult && (
+                            <Button variant="secondary" onClick={() => router.push(`/study/${activeMaterial.id}`)}>
+                              Review on Study Page
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">No quiz available for this material.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

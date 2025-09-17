@@ -101,11 +101,10 @@ export async function POST(req: Request) {
     const insertPayload = {
       user_id: userRowId,
       title: title || 'Untitled Material',
-      file_url: fileUrl || null,
+      file_url: fileUrl || 'text://inline',
       summary: summary,
       quiz: quiz,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      created_at: new Date().toISOString()
     };
 
     const { data, error } = await supabase
