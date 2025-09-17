@@ -23,6 +23,7 @@ import {
 import { useAuth } from '@/components/providers/providers';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useRouter } from 'next/navigation';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 
 interface Material {
   id: string;
@@ -39,8 +40,8 @@ interface Course {
   title: string;
   progress: number;
   last_studied: string;
-  total_lessons: number;
-  completed_lessons: number;
+  quiz_count: number;
+  summary_excerpt?: string;
 }
 
 const AI_FEATURES = [
@@ -81,8 +82,21 @@ export function LearningHub() {
   const [featureType, setFeatureType] = useState<FeatureType | null>(null);
   const [activeMaterialId, setActiveMaterialId] = useState<string>('');
   const [activeMaterial, setActiveMaterial] = useState<Material | null>(null);
+  // New state for generation actions and quiz settings
+  const [generatingSummary, setGeneratingSummary] = useState(false);
+  const [generatingQuiz, setGeneratingQuiz] = useState(false);
+  const [quizCount, setQuizCount] = useState<'10' | '20' | '50'>('10');
   const [quizAnswers, setQuizAnswers] = useState<string[]>([]);
   const [quizResult, setQuizResult] = useState<{ score: number; correct: boolean[] } | null>(null);
+
+  // Helper to sanitize any accidental URLs or boilerplate from summaries/excerpts
+  const sanitizeSummary = (s: string): string => {
+    if (!s) return s;
+    return s
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/Extracted\s+text\s+from\s+file:\s*/i, '')
+      .trim();
+  };
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { getAccessToken, user } = useAuth();
   const { toast } = useToast();
@@ -525,30 +539,70 @@ export function LearningHub() {
                 {courses.map((course) => (
                   <div
                     key={course.id}
-                    className="flex items-center space-x-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-start space-x-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                   >
                     <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                       <BookOpen className="w-6 h-6 text-blue-600" />
                     </div>
 
                     <div className="flex-1">
-                      <h3 className="font-medium mb-1">{course.title}</h3>
-                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                      <h3 className="font-medium mb-1 cursor-pointer hover:underline" onClick={() => router.push(`/study/${course.id}`)}>{course.title}</h3>
+                      <div className="flex items-center flex-wrap gap-4 text-sm text-gray-600">
                         <span className="flex items-center">
                           <Clock className="w-3 h-3 mr-1" />
                           {course.last_studied}
                         </span>
-                        <span>
-                          {course.completed_lessons}/{course.total_lessons} lessons
+                        <span className="flex items-center">
+                          <FileText className="w-3 h-3 mr-1" />
+                          {course.quiz_count} quizzes
                         </span>
                       </div>
+                      {course.summary_excerpt ? (
+                        <p
+                          className="mt-2 text-sm text-gray-700 cursor-pointer hover:underline"
+                          onClick={() => {
+                            setFeatureType('summary');
+                            setActiveMaterialId(course.id);
+                            loadMaterial(course.id);
+                            setFeatureOpen(true);
+                          }}
+                        >
+                          {course.summary_excerpt}
+                        </p>
+                      ) : null}
                       <Progress value={course.progress} className="mt-2 h-2" />
                     </div>
 
-                    <Button size="sm" onClick={() => router.push(`/study/${course.id}`)}>
-                      <Play className="w-4 h-4 mr-1" />
-                      Continue
-                    </Button>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <Button size="sm" onClick={() => router.push(`/study/${course.id}`)}>
+                        <Play className="w-4 h-4 mr-1" />
+                        Continue
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          setFeatureType('summary');
+                          setActiveMaterialId(course.id);
+                          loadMaterial(course.id);
+                          setFeatureOpen(true);
+                        }}
+                      >
+                        Read Summary
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setFeatureType('quiz');
+                          setActiveMaterialId(course.id);
+                          loadMaterial(course.id);
+                          setFeatureOpen(true);
+                        }}
+                      >
+                        Take Quiz
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -633,15 +687,51 @@ export function LearningHub() {
               <div className="space-y-2">
                 <h4 className="font-semibold">Summary</h4>
                 {activeMaterial ? (
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{activeMaterial.summary || 'No summary available for this material.'}</p>
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{sanitizeSummary(activeMaterial.summary || 'No summary available for this material.')}</p>
                 ) : (
                   <p className="text-sm text-gray-500">Choose a material to view its AI-generated summary.</p>
                 )}
-                {activeMaterial && (
-                  <Button variant="secondary" onClick={() => router.push(`/study/${activeMaterial.id}`)}>
-                    Open Study Page
+                <div className="flex items-center gap-3 pt-1">
+                  <Button
+                    onClick={async () => {
+                      if (!activeMaterial) return;
+                      try {
+                        setGeneratingSummary(true);
+                        const token = await getAccessToken();
+                        const res = await fetch(`/api/materials/${activeMaterial.id}`, {
+                          method: 'POST',
+                          headers: { 'content-type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                          body: JSON.stringify({ action: 'summary' })
+                        });
+                        if (!res.ok) throw new Error('Failed to generate summary');
+                        const json = await res.json();
+                        setActiveMaterial(json.item);
+                        setMaterials((prev) => prev.map((m) => (m.id === json.item.id ? json.item : m)));
+                        // Update Continue Learning summary excerpt immediately
+                        setCourses((prev) => prev.map((c) => c.id === json.item.id ? {
+                          ...c,
+                          summary_excerpt: (() => {
+                            const s = sanitizeSummary((json.item?.summary || '') as string);
+                            return s ? s.slice(0, 160) + (s.length > 160 ? '…' : '') : '';
+                          })()
+                        } : c));
+                        toast({ title: 'Summary generated', description: 'The summary has been updated.' });
+                      } catch (e) {
+                        toast({ title: 'Error', description: 'Could not generate summary', variant: 'destructive' });
+                      } finally {
+                        setGeneratingSummary(false);
+                      }
+                    }}
+                    disabled={!activeMaterial || generatingSummary}
+                  >
+                    {generatingSummary ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating…</>) : 'Generate Summary'}
                   </Button>
-                )}
+                  {activeMaterial && (
+                    <Button variant="secondary" onClick={() => router.push(`/study/${activeMaterial.id}`)}>
+                      Open Study Page
+                    </Button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -680,41 +770,67 @@ export function LearningHub() {
                   <p className="text-sm text-gray-500">Choose a material to generate and take a quiz.</p>
                 )}
                 {activeMaterial && (
-                  <div className="space-y-3">
-                    {Array.isArray((activeMaterial as any).quiz) && (activeMaterial as any).quiz.length > 0 ? (
-                      <div className="space-y-3">
-                        {((activeMaterial as any).quiz as { q: string; a?: string }[]).map((q, idx) => (
-                          <div key={idx} className="space-y-1">
-                            <p className="font-medium">Q{idx + 1}. {q.q}</p>
-                            <Input
-                              placeholder="Your answer"
-                              value={quizAnswers[idx] || ''}
-                              onChange={(e) => {
-                                const next = [...quizAnswers];
-                                next[idx] = e.target.value;
-                                setQuizAnswers(next);
-                              }}
-                            />
-                            {quizResult && (
-                              <p className={`text-xs ${quizResult.correct[idx] ? 'text-green-600' : 'text-red-600'}`}>
-                                {quizResult.correct[idx] ? 'Correct' : q.a ? `Expected: ${q.a}` : 'Recorded'}
-                              </p>
-                            )}
-                          </div>
-                        ))}
-                        <div className="flex items-center gap-3 pt-2">
-                          <Button onClick={gradeQuiz}>Submit Quiz</Button>
-                          {quizResult && <span className="text-sm">Score: <span className="font-semibold">{quizResult.score}%</span></span>}
-                          {quizResult && (
-                            <Button variant="secondary" onClick={() => router.push(`/study/${activeMaterial.id}`)}>
-                              Review on Study Page
-                            </Button>
-                          )}
-                        </div>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm text-gray-600 mb-1">Number of questions</label>
+                        <Select value={quizCount} onValueChange={(v) => setQuizCount(v as '10' | '20' | '50')}>
+                          <SelectTrigger className="w-full"><SelectValue placeholder="Select count" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                    ) : (
-                      <p className="text-sm text-gray-500">No quiz available for this material.</p>
-                    )}
+                      <div>
+                        <Button
+                          className="w-full"
+                          onClick={async () => {
+                            if (!activeMaterial) return;
+                            try {
+                              setGeneratingQuiz(true);
+                              const token = await getAccessToken();
+                              const res = await fetch(`/api/materials/${activeMaterial.id}`, {
+                                method: 'POST',
+                                headers: { 'content-type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                body: JSON.stringify({ action: 'quiz', count: Number(quizCount), useWebSearch: true })
+                              });
+                              if (!res.ok) throw new Error('Failed to generate quiz');
+                              const json = await res.json();
+                              setActiveMaterial(json.item);
+                              setMaterials((prev) => prev.map((m) => (m.id === json.item.id ? json.item : m)));
+                              // Update Continue Learning quiz count immediately
+                              setCourses((prev) => prev.map((c) => c.id === json.item.id ? {
+                                ...c,
+                                quiz_count: Array.isArray(json.item?.quiz) ? json.item.quiz.length : (c.quiz_count || 0)
+                              } : c));
+                              toast({ title: 'Success', description: `Quiz generated successfully. Created ${Array.isArray(json.item?.quiz) ? json.item.quiz.length : 0} questions.` });
+                              // Auto-close the quiz modal/tab after success
+                              setFeatureOpen(false);
+                            } catch (e) {
+                              toast({ title: 'Error', description: 'Could not generate quiz', variant: 'destructive' });
+                            } finally {
+                              setGeneratingQuiz(false);
+                            }
+                          }}
+                          disabled={generatingQuiz}
+                        >
+                          {generatingQuiz ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating…</>) : 'Generate Quiz'}
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                      <span>Questions available</span>
+                      <span className="font-medium">{Array.isArray((activeMaterial as any).quiz) ? (activeMaterial as any).quiz.length : 0}</span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Button variant="secondary" onClick={() => router.push(`/study/${activeMaterial.id}`)}>
+                        Open Study Page
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>

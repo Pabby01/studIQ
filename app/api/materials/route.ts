@@ -75,20 +75,20 @@ export async function POST(req: Request) {
 
     // Process content with SendAI
     let summary: string | null = null;
-    let quiz: QuizQuestion[] | null = null;
+    let quiz: any[] | null = null;
 
     try {
       if (textContent) {
         const summaryResponse = await sendai.summarize(textContent);
         summary = summaryResponse.summary;
-        const quizResponse = await sendai.generateQuiz(textContent);
-        quiz = quizResponse.questions;
+        const quizResponse = await sendai.generateMCQ(textContent, 10, { sourceTitle: title, useWebSearch: true });
+        quiz = quizResponse.questions as any[];
       } else if (fileUrl) {
-        const extractedText = await sendai.extractText(fileUrl);
+        const extractedText = await sendai.extractText(fileUrl, { sourceTitle: title });
         const summaryResponse = await sendai.summarize(extractedText);
         summary = summaryResponse.summary;
-        const quizResponse = await sendai.generateQuiz(extractedText);
-        quiz = quizResponse.questions;
+        const quizResponse = await sendai.generateMCQ(extractedText, 10, { sourceTitle: title, useWebSearch: true });
+        quiz = quizResponse.questions as any[];
       }
     } catch (error) {
       console.error('Error processing content with SendAI:', error);
