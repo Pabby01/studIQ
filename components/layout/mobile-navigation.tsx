@@ -2,7 +2,6 @@
 
 import { BookOpen, DollarSign, MapPin, User, Wallet } from 'lucide-react';
 import { WalletConnect } from '@/components/wallet/wallet-connect';
-import { WalletBalance } from '@/components/wallet/wallet-balance';
 import { TabType } from './main-layout';
 
 interface MobileNavigationProps {
@@ -11,17 +10,6 @@ interface MobileNavigationProps {
 }
 
 const NAV_ITEMS = [
-  {
-    id: 'wallet' as TabType,
-    label: 'Wallet',
-    icon: Wallet,
-    component: () => (
-      <div className="flex flex-col items-center space-y-2">
-        <WalletConnect />
-        <WalletBalance />
-      </div>
-    ),
-  },
   {
     id: 'learning' as TabType,
     label: 'Learning',
@@ -38,6 +26,11 @@ const NAV_ITEMS = [
     icon: MapPin,
   },
   {
+    id: 'wallet' as TabType,
+    label: 'Wallet',
+    icon: Wallet,
+  },
+  {
     id: 'profile' as TabType,
     label: 'Profile',
     icon: User,
@@ -47,7 +40,7 @@ const NAV_ITEMS = [
 export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationProps) {
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-      <div className="grid grid-cols-4 h-16">
+      <div className="grid grid-cols-5 h-14">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -56,14 +49,14 @@ export function MobileNavigation({ activeTab, onTabChange }: MobileNavigationPro
             <button
               key={item.id}
               onClick={() => onTabChange(item.id)}
-              className={`flex flex-col items-center justify-center space-y-1 transition-colors ${
+              className={`flex flex-col items-center justify-center gap-0.5 px-1 text-[11px] leading-none transition-colors whitespace-nowrap ${
                 isActive
                   ? 'text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
               <Icon className="w-5 h-5" />
-              <span className="text-xs font-medium">{item.label}</span>
+              <span className="font-medium">{item.label}</span>
             </button>
           );
         })}

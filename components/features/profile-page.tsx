@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, ChangeEvent } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,6 +70,40 @@ const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [usernameError, setUsernameError] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,20}$/;
+  const MAX_AVATAR_SIZE = 2 * 1024 * 1024; // 2MB
+  const ALLOWED_AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
+  // Avatar input change handler with validation
+  const onAvatarInputChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+      toast({
+        title: 'Unsupported file type',
+        description: 'Please select a PNG, JPG, or WEBP image.',
+        variant: 'destructive',
+      });
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > MAX_AVATAR_SIZE) {
+      toast({
+        title: 'Image too large',
+        description: 'Max size is 2MB. Please choose a smaller image.',
+        variant: 'destructive',
+      });
+      e.target.value = '';
+      return;
+    }
+
+    await handleAvatarChange(file);
+    e.target.value = '';
+  };
 
   useEffect(() => {
     if (profile) {
@@ -112,6 +146,13 @@ const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
 
   const handleSave = async () => {
     try {
+      // Pre-validate username
+      if (username && !USERNAME_REGEX.test(username)) {
+        setUsernameError('Use 3-20 letters, numbers, or underscores');
+        toast({ title: 'Invalid username', description: 'Use 3-20 letters, numbers, or underscores', variant: 'destructive' });
+        return;
+      }
+
       setSaving(true);
       const token = await getAccessToken();
       const res = await fetch('/api/profile', {
@@ -122,10 +163,19 @@ const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
         },
         body: JSON.stringify({ username, bio, preferences: { display_name: displayName } })
       });
+
+      // Handle duplicate username explicitly
+      if (res.status === 409) {
+        setUsernameError('Username not available');
+        toast({ title: 'Username not available', description: 'Please choose a different username.', variant: 'destructive' });
+        return;
+      }
+
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || 'Failed to save');
       setProfile(json.profile);
       setEditing(false);
+      setUsernameError('');
       toast({ title: 'Profile updated' });
     } catch (e: any) {
       console.error(e);
@@ -202,21 +252,24 @@ const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
                 <AvatarImage src={profile?.avatar_url || ''} />
                 <AvatarFallback>{(profile?.username || user?.email || 'U').slice(0, 2).toUpperCase()}</AvatarFallback>
               </Avatar>
-              <label className="absolute -bottom-2 -right-2">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handleAvatarChange(f);
-                  }}
-                  disabled={avatarUploading}
-                />
-                <Button size="icon" variant="secondary" className="rounded-full" disabled={avatarUploading}>
-                  <Upload className="w-4 h-4" />
-                </Button>
-              </label>
+              {/* Hidden file input for avatar selection */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={onAvatarInputChange}
+                disabled={avatarUploading}
+              />
+              <Button
+                size="icon"
+                variant="secondary"
+                className="absolute -bottom-2 -right-2 rounded-full"
+                disabled={avatarUploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="w-4 h-4" />
+              </Button>
             </div>
             
             <div className="flex-1">
@@ -277,7 +330,24 @@ const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
                     </div>
                     <div>
                       <Label htmlFor="username">Username</Label>
-                      <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} className="mt-1" />
+                      <Input
+                        id="username"
+                        value={username}
+                        onChange={(e) => {
+                          const v = e.target.value.trim();
+                          setUsername(v);
+                          // Live validation feedback
+                          if (v && !USERNAME_REGEX.test(v)) {
+                            setUsernameError('Use 3-20 letters, numbers, or underscores');
+                          } else {
+                            setUsernameError('');
+                          }
+                        }}
+                        className={`mt-1 ${usernameError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                      />
+                      {usernameError ? (
+                        <p className="text-xs text-red-600 mt-1">{usernameError}</p>
+                      ) : null}
                     </div>
                     <div className="md:col-span-2">
                       <Label htmlFor="bio">Bio</Label>
