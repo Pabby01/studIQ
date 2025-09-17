@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,8 +22,15 @@ import {
   ExternalLink,
   TrendingUp,
   Book,
-  DollarSign
+  DollarSign,
+  Upload,
+  Save,
+  X
 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { WalletBalance } from '@/components/wallet/wallet-balance';
 
 const USER_STATS = {
   coursesCompleted: 5,
@@ -47,131 +54,298 @@ const ACHIEVEMENTS = [
 
 export function ProfilePage() {
   const [activeSection, setActiveSection] = useState('profile');
-  const { user, signOut } = useAuth();
+  const { user, signOut, getAccessToken } = useAuth();
+  const { toast } = useToast();
+const wallet = useWallet();
+const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
+
+  // Realtime profile state
+  const [profile, setProfile] = useState<any | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
   const [editing, setEditing] = useState(false);
+
+  // Local form fields
+  const displayName = useMemo(() => profile?.preferences?.display_name || '', [profile]);
+  const [username, setUsername] = useState('');
+  const [bio, setBio] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
+  useEffect(() => {
+    if (profile) {
+      setUsername(profile.username || '');
+      setBio(profile.bio || '');
+    }
+  }, [profile]);
+
+  // Load profile
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        setLoading(true);
+        const token = await getAccessToken();
+        const res = await fetch('/api/profile', {
+          headers: {
+            'content-type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          cache: 'no-store'
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'Failed to load profile');
+        const json = await res.json();
+        if (mounted) setProfile(json.profile || null);
+      } catch (e: any) {
+        console.error(e);
+        toast({ title: 'Error', description: e?.message || 'Unable to load profile', variant: 'destructive' });
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+    return () => { mounted = false };
+  }, [getAccessToken, toast]);
 
   const handleSignOut = async () => {
     await signOut();
   };
 
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      const token = await getAccessToken();
+      const res = await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ username, bio, preferences: { display_name: displayName } })
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || 'Failed to save');
+      setProfile(json.profile);
+      setEditing(false);
+      toast({ title: 'Profile updated' });
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: 'Error', description: e?.message || 'Save failed', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAvatarChange = async (file: File) => {
+    try {
+      setAvatarUploading(true);
+      const token = await getAccessToken();
+      const form = new FormData();
+      form.append('file', file);
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: form
+      });
+      const uploadJson = await uploadRes.json().catch(() => ({}));
+      if (!uploadRes.ok) throw new Error(uploadJson?.error || 'Upload failed');
+      const avatar_url = uploadJson.url as string;
+
+      const patchRes = await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ avatar_url })
+      });
+      const patchJson = await patchRes.json().catch(() => ({}));
+      if (!patchRes.ok) throw new Error(patchJson?.error || 'Failed to update avatar');
+      setProfile(patchJson.profile);
+      toast({ title: 'Avatar updated' });
+    } catch (e: any) {
+      console.error(e);
+      toast({ title: 'Error', description: e?.message || 'Upload failed', variant: 'destructive' });
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
   const renderProfileSection = () => (
     <div className="space-y-6">
-      <Card className="p-6">
-        <div className="flex items-start space-x-6 mb-6">
-          <Avatar className="w-20 h-20">
-            <AvatarImage src="https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop" />
-            <AvatarFallback>JD</AvatarFallback>
-          </Avatar>
-          
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-2xl font-bold">John Doe</h1>
-                <p className="text-gray-600">@johndoe</p>
-                <p className="text-sm text-gray-500">Computer Science Student</p>
+      {/* Loading state */}
+      {loading ? (
+        <Card className="p-6 animate-pulse">
+          <div className="flex items-start space-x-6 mb-6">
+            <div className="w-20 h-20 bg-gray-200 rounded-full" />
+            <div className="flex-1 space-y-3">
+              <div className="h-6 w-40 bg-gray-200 rounded" />
+              <div className="h-4 w-24 bg-gray-200 rounded" />
+              <div className="h-4 w-64 bg-gray-200 rounded" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="text-center">
+                <div className="h-6 w-12 bg-gray-200 rounded mx-auto mb-1" />
+                <div className="h-4 w-20 bg-gray-200 rounded mx-auto" />
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setEditing(!editing)}
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Edit Profile
-              </Button>
+            ))}
+          </div>
+        </Card>
+      ) : (
+        <Card className="p-6">
+          <div className="flex items-start space-x-6 mb-6">
+            <div className="relative">
+              <Avatar className="w-20 h-20">
+                <AvatarImage src={profile?.avatar_url || ''} />
+                <AvatarFallback>{(profile?.username || user?.email || 'U').slice(0, 2).toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <label className="absolute -bottom-2 -right-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleAvatarChange(f);
+                  }}
+                  disabled={avatarUploading}
+                />
+                <Button size="icon" variant="secondary" className="rounded-full" disabled={avatarUploading}>
+                  <Upload className="w-4 h-4" />
+                </Button>
+              </label>
+            </div>
+            
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h1 className="text-2xl font-bold">{displayName || profile?.username || user?.email || 'Your Name'}</h1>
+                  <p className="text-gray-600">@{profile?.username || 'username'}</p>
+                  <p className="text-sm text-gray-500">{profile?.bio || 'Add a short bio to your profile'}</p>
+                </div>
+                {!editing ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setEditing(true)}
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit Profile
+                  </Button>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setEditing(false)}>
+                      <X className="w-4 h-4 mr-2" />
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleSave} disabled={saving}>
+                      <Save className="w-4 h-4 mr-2" />
+                      {saving ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {!editing ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-blue-600">{5}</p>
+                    <p className="text-sm text-gray-600">Courses</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-green-600">{127}</p>
+                    <p className="text-sm text-gray-600">Study Hours</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-purple-600">{3}</p>
+                    <p className="text-sm text-gray-600">NFT Badges</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-orange-600">{28}</p>
+                    <p className="text-sm text-gray-600">Transactions</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="border-t pt-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="displayName">Display Name</Label>
+                      <Input id="displayName" value={displayName} onChange={(e) => setProfile((p: any) => ({ ...(p || {}), preferences: { ...(p?.preferences || {}), display_name: e.target.value } }))} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label htmlFor="username">Username</Label>
+                      <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} className="mt-1" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="bio">Bio</Label>
+                      <Input id="bio" value={bio} onChange={(e) => setBio(e.target.value)} className="mt-1" />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Wallet Information */}
+          <div className="mt-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <Wallet className="w-5 h-5 text-blue-600" />
+              <h2 className="text-lg font-semibold">Wallet Information</h2>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-blue-600">{USER_STATS.coursesCompleted}</p>
-                <p className="text-sm text-gray-600">Courses</p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="font-medium">Solana Address</p>
+                  <p className="text-sm text-gray-600 font-mono">
+                    {pubkey ? `${pubkey.slice(0, 6)}...${pubkey.slice(-6)}` : 'Not connected'}
+                  </p>
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (pubkey) {
+                        navigator.clipboard.writeText(pubkey);
+                        toast({ title: 'Copied to clipboard' });
+                      }
+                    }}
+                    disabled={!pubkey}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (!pubkey) return;
+                      const rpc = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || '';
+                      const isDevnet = /devnet|testnet/i.test(rpc) || rpc.includes('devnet');
+                      const url = `https://explorer.solana.com/address/${pubkey}${isDevnet ? '?cluster=devnet' : ''}`;
+                      window.open(url, '_blank');
+                    }}
+                    disabled={!pubkey}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-green-600">{USER_STATS.totalStudyHours}</p>
-                <p className="text-sm text-gray-600">Study Hours</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-purple-600">{USER_STATS.nftBadges}</p>
-                <p className="text-sm text-gray-600">NFT Badges</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-orange-600">{USER_STATS.walletTransactions}</p>
-                <p className="text-sm text-gray-600">Transactions</p>
+
+              {/* Live Balance */}
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <span className="text-sm text-gray-600">SOL Balance</span>
+                <WalletBalance />
               </div>
             </div>
           </div>
-        </div>
+        </Card>
+      )}
 
-        {editing && (
-          <div className="border-t pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input id="fullName" defaultValue="John Doe" className="mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="username">Username</Label>
-                <Input id="username" defaultValue="johndoe" className="mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" defaultValue="john.doe@university.edu" className="mt-1" />
-              </div>
-              <div>
-                <Label htmlFor="major">Major</Label>
-                <Input id="major" defaultValue="Computer Science" className="mt-1" />
-              </div>
-            </div>
-            <div className="flex justify-end space-x-3 mt-4">
-              <Button variant="outline" onClick={() => setEditing(false)}>
-                Cancel
-              </Button>
-              <Button onClick={() => setEditing(false)}>
-                Save Changes
-              </Button>
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* Wallet Information */}
-      <Card className="p-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <Wallet className="w-5 h-5 text-blue-600" />
-          <h2 className="text-lg font-semibold">Wallet Information</h2>
-        </div>
-        
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <div>
-              <p className="font-medium">Solana Address</p>
-              <p className="text-sm text-gray-600 font-mono">3k8J2mK9...Qr5tX8nL</p>
-            </div>
-            <div className="flex space-x-2">
-              <Button variant="outline" size="sm">
-                <Copy className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="sm">
-                <ExternalLink className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-3 border rounded-lg">
-              <p className="text-lg font-semibold text-blue-600">2.45</p>
-              <p className="text-sm text-gray-600">SOL</p>
-            </div>
-            <div className="text-center p-3 border rounded-lg">
-              <p className="text-lg font-semibold text-green-600">$123.05</p>
-              <p className="text-sm text-gray-600">USDC</p>
-            </div>
-            <div className="text-center p-3 border rounded-lg">
-              <p className="text-lg font-semibold text-orange-600">245</p>
-              <p className="text-sm text-gray-600">Credits</p>
-            </div>
-          </div>
-        </div>
-      </Card>
+      {/* Achievements and other sections remain as before */}
     </div>
   );
 
