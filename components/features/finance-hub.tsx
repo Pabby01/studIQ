@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,8 @@ import {
   ArrowDownLeft,
   Target,
   Brain,
-  Shield
+  Shield,
+  Plus
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useAuth } from '@/components/providers/providers';
@@ -25,6 +26,10 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { useWallet } from '@solana/wallet-adapter-react';
 import { SolanaAgent } from '@/lib/solana-agent';
 import { WalletConnect } from '@/components/wallet/wallet-connect';
+import QRCode from 'qrcode';
+import { toast } from 'sonner';
+import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import Image from 'next/image';
 
 const WALLET_DATA = {
   balance: 125.50,
@@ -57,7 +62,7 @@ const BALANCE_CHART_DATA = [
 export function FinanceHub() {
   const [sendAmount, setSendAmount] = useState('');
   const [recipient, setRecipient] = useState('');
-  const { getAccessToken } = useAuth();
+  const { getAccessToken, user } = useAuth();
   const supabase = createClientComponentClient();
   const [wallets, setWallets] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -76,9 +81,174 @@ export function FinanceHub() {
   
   // Solana wallet integration
   const wallet = useWallet();
-  const { publicKey, connected } = wallet;
+  const { publicKey, connected, signTransaction } = wallet;
   const [realWalletBalance, setRealWalletBalance] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading] = useState(false);
+  
+  // QR Code generation
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+  const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+  
+  // Additional savings goals state
+  const [isLoadingGoals, setIsLoadingGoals] = useState(false);
+  const [goalsError, setGoalsError] = useState<string | null>(null);
+  
+  // Recipient addresses state
+  const [savedAddresses, setSavedAddresses] = useState<{id: string, name: string, address: string}[]>([]);
+  const [showAddAddress, setShowAddAddress] = useState(false);
+  const [newAddressName, setNewAddressName] = useState('');
+  const [newAddressValue, setNewAddressValue] = useState('');
+  const [selectedRecipient, setSelectedRecipient] = useState('');
+
+  // Fetch savings goals
+  const fetchSavingsGoals = async () => {
+    if (!user?.id) return;
+    
+    setIsLoadingGoals(true);
+    setGoalsError(null);
+    try {
+      const token = await getAccessToken();
+      const headers: HeadersInit = { 
+        'content-type': 'application/json', 
+        ...(token ? { Authorization: `Bearer ${token}` } : {}) 
+      };
+      const response = await fetch('/api/savings-goals', { headers });
+      if (response.ok) {
+        const goals = await response.json();
+        setSavingsGoals(goals.items || goals);
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch savings goals' }));
+        let errorMessage = errorData.error || `Error ${response.status}: ${response.statusText}`;
+        
+        // Provide specific error messages based on status code
+        if (response.status === 401) {
+          errorMessage = 'Authentication failed. Please log in again.';
+          toast.error('Please log in again to access your savings goals');
+        } else if (response.status === 403) {
+          errorMessage = 'Access denied. Your account may need to be set up.';
+          toast.error('Account setup required. Please contact support.');
+        } else if (response.status === 500) {
+          errorMessage = 'Server error. Please try again later.';
+          toast.error('Server error. Please try again in a few moments.');
+        } else {
+          toast.error('Failed to load savings goals');
+        }
+        
+        setGoalsError(errorMessage);
+      }
+    } catch (error) {
+      console.error('Error fetching savings goals:', error);
+      setGoalsError('Network error: Unable to connect to server');
+      toast.error('Unable to load savings goals. Please check your connection.');
+    } finally {
+      setIsLoadingGoals(false);
+    }
+  };
+  
+  // Create new savings goal
+  const handleCreateSavingsGoal = async () => {
+    if (!user?.id || !newGoalName || !newGoalTarget || !newGoalDeadline) return;
+    
+    try {
+      const token = await getAccessToken();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      };
+      const response = await fetch('/api/savings-goals', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          name: newGoalName,
+          target_amount: parseFloat(newGoalTarget),
+          current_amount: 0,
+          deadline: newGoalDeadline,
+          user_id: user.id
+        })
+      });
+      
+      if (response.ok) {
+        const newGoal = await response.json();
+        setSavingsGoals(prev => [...prev, newGoal.item || newGoal]);
+        setShowCreateGoal(false);
+        setNewGoalName('');
+        setNewGoalTarget('');
+        setNewGoalDeadline('');
+        toast.success('Savings goal created successfully!');
+      } else {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to create savings goal' }));
+        let errorMessage = errorData.error || 'Failed to create savings goal';
+        
+        // Provide specific error messages based on status code
+        if (response.status === 401) {
+          errorMessage = 'Authentication failed. Please log in again.';
+          toast.error('Please log in again to create savings goals');
+        } else if (response.status === 400) {
+          errorMessage = errorData.error || 'Invalid goal data. Please check your inputs.';
+          toast.error(errorMessage);
+        } else if (response.status === 403) {
+          errorMessage = 'Access denied. Your account may need to be set up.';
+          toast.error('Account setup required. Please contact support.');
+        } else if (response.status === 500) {
+          errorMessage = 'Server error. Please try again later.';
+          toast.error('Server error. Please try again in a few moments.');
+        } else {
+          toast.error(errorMessage);
+        }
+      }
+    } catch (error) {
+      console.error('Error creating savings goal:', error);
+      toast.error('Network error. Please check your connection and try again.');
+    }
+  };
+  
+  // Load savings goals on component mount
+  useEffect(() => {
+    fetchSavingsGoals();
+  }, [user?.id]);
+  
+  // Load saved addresses from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('savedAddresses');
+    if (saved) {
+      setSavedAddresses(JSON.parse(saved));
+    }
+  }, []);
+  
+  // Save address to localStorage
+  const handleSaveAddress = () => {
+    if (!newAddressName || !newAddressValue) return;
+    
+    try {
+      // Validate Solana address
+      new PublicKey(newAddressValue);
+      
+      const newAddress = {
+        id: Date.now().toString(),
+        name: newAddressName,
+        address: newAddressValue
+      };
+      
+      const updatedAddresses = [...savedAddresses, newAddress];
+      setSavedAddresses(updatedAddresses);
+      localStorage.setItem('savedAddresses', JSON.stringify(updatedAddresses));
+      
+      setNewAddressName('');
+      setNewAddressValue('');
+      setShowAddAddress(false);
+      toast.success('Address saved successfully!');
+    } catch (error) {
+      toast.error('Invalid Solana address format');
+    }
+  };
+  
+  // Remove saved address
+  const handleRemoveAddress = (id: string) => {
+    const updatedAddresses = savedAddresses.filter(addr => addr.id !== id);
+    setSavedAddresses(updatedAddresses);
+    localStorage.setItem('savedAddresses', JSON.stringify(updatedAddresses));
+    toast.success('Address removed successfully!');
+  };
 
   // Real-time wallet balance fetching
   useEffect(() => {
@@ -139,7 +309,32 @@ export function FinanceHub() {
     return fromWallets;
   }, [wallets]);
 
-  const selectedWallet = useMemo(() => wallets.find((w) => w.id === selectedWalletId), [wallets, selectedWalletId]);
+  // Include connected Solana wallet in the available wallets
+  const availableWallets = useMemo(() => {
+    const dbWallets = [...wallets];
+    
+    // Add connected Solana wallet if available
+    if (connected && publicKey) {
+      const solanaWallet = {
+        id: 'connected-solana',
+        public_key: publicKey.toString(),
+        balance: realWalletBalance || 0,
+        token: 'SOL',
+        user_id: null,
+        created_at: new Date().toISOString()
+      };
+      
+      // Check if this wallet is already in the database
+      const existingWallet = dbWallets.find(w => w.public_key === publicKey.toString());
+      if (!existingWallet) {
+        dbWallets.unshift(solanaWallet); // Add at the beginning
+      }
+    }
+    
+    return dbWallets;
+  }, [wallets, connected, publicKey, realWalletBalance]);
+
+  const selectedWallet = useMemo(() => availableWallets.find((w) => w.id === selectedWalletId), [availableWallets, selectedWalletId]);
 
   useEffect(() => {
     const load = async () => {
@@ -183,6 +378,39 @@ export function FinanceHub() {
     load();
   }, [getAccessToken]);
 
+  // Auto-select connected Solana wallet when available
+  useEffect(() => {
+    if (connected && publicKey && !selectedWalletId) {
+      setSelectedWalletId('connected-solana');
+    }
+  }, [connected, publicKey, selectedWalletId]);
+
+  // Generate QR code when selected wallet changes
+  useEffect(() => {
+    const generateQRCode = async () => {
+      if (selectedWallet?.public_key) {
+        try {
+          const dataUrl = await QRCode.toDataURL(selectedWallet.public_key, {
+            width: 96,
+            margin: 1,
+            color: {
+              dark: '#000000',
+              light: '#FFFFFF'
+            }
+          });
+          setQrCodeDataUrl(dataUrl);
+        } catch (error) {
+          console.error('Error generating QR code:', error);
+          setQrCodeDataUrl(null);
+        }
+      } else {
+        setQrCodeDataUrl(null);
+      }
+    };
+
+    generateQRCode();
+  }, [selectedWallet?.public_key]);
+
   // Realtime updates
   useEffect(() => {
     const channel = supabase
@@ -222,72 +450,124 @@ export function FinanceHub() {
   }, [supabase, getAccessToken]);
 
   const handleSend = async () => {
+    if (!selectedWalletId || !sendAmount || !selectedRecipient || (selectedRecipient === 'new' && !newAddressValue)) return;
+    
+    const recipientAddress = selectedRecipient === 'new' ? newAddressValue : selectedRecipient;
+    
+    // Validate recipient address
     try {
-      setLoading(true);
+      new PublicKey(recipientAddress);
+    } catch (error) {
+      toast.error('Invalid recipient address format');
+      return;
+    }
+    
+    setLoading(true);
+    try {
       const amountNum = parseFloat(sendAmount);
-      if (!selectedWalletId || Number.isNaN(amountNum) || amountNum <= 0) return;
-      const token = await getAccessToken();
-      const res = await fetch('/api/transactions', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({ wallet_id: selectedWalletId, amount: amountNum, tx_type: 'send' })
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || 'Failed to send');
+      if (Number.isNaN(amountNum) || amountNum <= 0) return;
+      
+      // Check if we have a connected Solana wallet for signing
+      if (publicKey && signTransaction) {
+        try {
+          // Create Solana connection
+          const connection = new Connection('https://api.devnet.solana.com', 'confirmed');
+          
+          // Convert amount to lamports
+          const lamports = Math.floor(amountNum * LAMPORTS_PER_SOL);
+          
+          // Create recipient public key
+          const recipientPubkey = new PublicKey(recipientAddress);
+          
+          // Create transaction
+          const transaction = new Transaction().add(
+            SystemProgram.transfer({
+              fromPubkey: publicKey,
+              toPubkey: recipientPubkey,
+              lamports: lamports,
+            })
+          );
+          
+          // Get recent blockhash
+          const { blockhash } = await connection.getLatestBlockhash();
+          transaction.recentBlockhash = blockhash;
+          transaction.feePayer = publicKey;
+          
+          toast.info('Please approve the transaction in your wallet...');
+          
+          // Sign transaction with wallet
+          const signedTransaction = await signTransaction(transaction);
+          
+          // Send transaction
+          const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+          
+          toast.info('Transaction submitted. Waiting for confirmation...');
+          
+          // Wait for confirmation
+          await connection.confirmTransaction(signature, 'confirmed');
+          
+          toast.success(`Transaction completed! Signature: ${signature.slice(0, 8)}...`);
+          
+          // Update local state
+          const newTransaction = {
+            id: signature,
+            amount: amountNum,
+            type: 'send',
+            recipient: recipientAddress,
+            timestamp: new Date().toISOString(),
+            status: 'completed'
+          };
+          setTransactions(prev => [newTransaction, ...prev]);
+        } catch (error: any) {
+          console.error('Transaction failed:', error);
+          if (error.message?.includes('User rejected')) {
+            toast.error('Transaction was cancelled by user');
+          } else {
+            toast.error(`Transaction failed: ${error.message || 'Unknown error'}`);
+          }
+          throw error;
+        }
+      } else {
+        // Fallback for database transactions
+        const token = await getAccessToken();
+        const res = await fetch('/api/transactions', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ 
+            wallet_id: selectedWalletId, 
+            amount: amountNum, 
+            tx_type: 'send',
+            recipient: recipientAddress
+          })
+        });
+        
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error || 'Failed to send');
+        }
+        
+        const json = await res.json();
+        setTransactions((prev) => [json.item, ...prev]);
+        toast.success('Transaction completed!');
       }
-      const json = await res.json();
-      setTransactions((prev) => [json.item, ...prev]);
+      
+      // Reset form
       setSendAmount('');
-      setRecipient('');
+      setSelectedRecipient('');
+      setNewAddressValue('');
+      
     } catch (e) {
       console.error(e);
-      alert((e as any)?.message || 'Failed to send');
+      toast.error((e as any)?.message || 'Transaction failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateSavingsGoal = async () => {
-    try {
-      const targetAmount = parseFloat(newGoalTarget);
-      if (!newGoalName || Number.isNaN(targetAmount) || targetAmount <= 0 || !newGoalDeadline) return;
-      
-      const token = await getAccessToken();
-      const res = await fetch('/api/savings-goals', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          name: newGoalName,
-          target_amount: targetAmount,
-          current_amount: 0,
-          deadline: newGoalDeadline,
-          reminder_enabled: true
-        })
-      });
-      
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || 'Failed to create savings goal');
-      }
-      
-      const json = await res.json();
-      setSavingsGoals((prev) => [json.item, ...prev]);
-      setNewGoalName('');
-      setNewGoalTarget('');
-      setNewGoalDeadline('');
-      setShowCreateGoal(false);
-    } catch (e) {
-      console.error(e);
-      alert((e as any)?.message || 'Failed to create savings goal');
-    }
-  };
+
 
   const handleCreatePlan = async () => {
     try {
@@ -403,12 +683,12 @@ export function FinanceHub() {
                       <SelectValue placeholder="Choose a wallet" />
                     </SelectTrigger>
                     <SelectContent>
-                      {wallets.length === 0 && (
+                      {availableWallets.length === 0 && (
                         <div className="px-3 py-2 text-sm text-gray-500">No wallets found</div>
                       )}
-                      {wallets.map((w: any) => (
+                      {availableWallets.map((w: any) => (
                         <SelectItem key={w.id} value={w.id}>
-                          {String(w.public_key).slice(0, 4)}...{String(w.public_key).slice(-4)} • ${Number(w.balance || 0).toFixed(2)}
+                          {w.id === 'connected-solana' ? '🟢 ' : ''}{String(w.public_key).slice(0, 4)}...{String(w.public_key).slice(-4)} • {w.token === 'SOL' ? `${Number(w.balance || 0).toFixed(4)} SOL` : `$${Number(w.balance || 0).toFixed(2)}`}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -423,19 +703,98 @@ export function FinanceHub() {
 
                 {/* Recipient */}
                 <div className="space-y-1 md:col-span-2">
-                  <label className="text-xs text-gray-600">Recipient (optional note)</label>
-                  <Input placeholder="e.g. Campus Store" value={recipient} onChange={(e) => setRecipient(e.target.value)} />
+                  <label className="text-xs text-gray-600">Recipient Address</label>
+                  <div className="space-y-2">
+                    <Select value={selectedRecipient} onValueChange={setSelectedRecipient}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select saved address or enter new" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="new">Enter new address</SelectItem>
+                        {savedAddresses.map((addr) => (
+                          <SelectItem key={addr.id} value={addr.address}>
+                            {addr.name} ({addr.address.slice(0, 8)}...{addr.address.slice(-4)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    {selectedRecipient === 'new' && (
+                      <div className="space-y-2">
+                        <Input 
+                          placeholder="Enter Solana wallet address" 
+                          value={newAddressValue}
+                          onChange={(e) => setNewAddressValue(e.target.value)}
+                        />
+                        {!showAddAddress ? (
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => setShowAddAddress(true)}
+                            disabled={!newAddressValue}
+                          >
+                            <Plus className="w-4 h-4 mr-2" />
+                            Save Address
+                          </Button>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Input 
+                              placeholder="Address name (e.g., John's Wallet)"
+                              value={newAddressName}
+                              onChange={(e) => setNewAddressName(e.target.value)}
+                              className="flex-1"
+                            />
+                            <Button size="sm" onClick={handleSaveAddress} disabled={!newAddressName}>
+                              Save
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => {
+                              setShowAddAddress(false);
+                              setNewAddressName('');
+                            }}>
+                              Cancel
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
+                    {savedAddresses.length > 0 && (
+                      <div className="mt-3">
+                        <label className="block text-xs font-medium text-gray-600 mb-2">Saved Addresses</label>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {savedAddresses.map((addr) => (
+                            <div key={addr.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
+                              <div>
+                                <span className="font-medium">{addr.name}</span>
+                                <span className="text-gray-500 ml-2">
+                                  {addr.address.slice(0, 8)}...{addr.address.slice(-4)}
+                                </span>
+                              </div>
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                onClick={() => handleRemoveAddress(addr.id)}
+                                className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                              >
+                                ×
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="md:col-span-2 flex items-center justify-end">
-                  <Button onClick={handleSend} disabled={loading || !selectedWalletId || !sendAmount}>
+                  <Button onClick={handleSend} disabled={loading || !selectedWalletId || !sendAmount || (!selectedRecipient || (selectedRecipient === 'new' && !newAddressValue))}>
                     {loading ? 'Sending...' : 'Send'}
                   </Button>
                 </div>
               </div>
               <div className="mt-3 text-xs text-gray-600">
                 {selectedWallet ? (
-                  <span>Available balance: ${Number(selectedWallet.balance || 0).toFixed(2)}</span>
+                  <span>Available balance: {selectedWallet.token === 'SOL' ? `${Number(selectedWallet.balance || 0).toFixed(4)} SOL` : `$${Number(selectedWallet.balance || 0).toFixed(2)}`}</span>
                 ) : (
                   <span>Select a wallet to see balance</span>
                 )}
@@ -446,13 +805,31 @@ export function FinanceHub() {
                   Receive Tokens
                 </h3>
                 <div className="p-4 bg-gray-100 rounded-lg text-center">
-                  <div className="w-24 h-24 bg-white border-2 border-dashed border-gray-300 rounded-lg mx-auto mb-3 flex items-center justify-center">
-                    <span className="text-xs text-gray-500">QR Code</span>
+                  <div className="w-24 h-24 bg-white border-2 border-solid border-gray-300 rounded-lg mx-auto mb-3 flex items-center justify-center overflow-hidden">
+                    {qrCodeDataUrl ? (
+                      <Image 
+                        src={qrCodeDataUrl} 
+                        alt="Wallet QR Code" 
+                        width={96}
+                        height={96}
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <span className="text-xs text-gray-500">No Wallet</span>
+                    )}
                   </div>
                   <p className="text-sm text-gray-600 mb-2">Your Wallet Address:</p>
                   <p className="text-xs font-mono bg-white px-2 py-1 rounded border break-all">
-                    {selectedWallet?.public_key ? `${String(selectedWallet.public_key).slice(0,4)}...${String(selectedWallet.public_key).slice(-4)}` : '—'}
+                    {selectedWallet?.public_key || '—'}
                   </p>
+                  {selectedWallet?.public_key && (
+                    <button 
+                      className="mt-2 text-xs text-blue-600 hover:text-blue-800"
+                      onClick={() => navigator.clipboard.writeText(selectedWallet.public_key)}
+                    >
+                      📋 Copy Address
+                    </button>
+                  )}
                 </div>
               </div>
             </Card>
@@ -562,28 +939,100 @@ export function FinanceHub() {
               </div>
               
               <div className="space-y-4">
-                <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-blue-900">Emergency Fund</span>
-                    <span className="text-sm text-blue-600">$350 / $500</span>
+                {isLoadingGoals ? (
+                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-center">
+                    <p className="text-sm text-gray-600">Loading savings goals...</p>
                   </div>
-                  <Progress value={70} className="h-2 mb-2" />
-                  <p className="text-xs text-blue-700">70% complete • $150 to go</p>
-                </div>
-                
-                <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-green-900">New Laptop</span>
-                    <span className="text-sm text-green-600">$200 / $800</span>
+                ) : goalsError ? (
+                  <div className="p-3 bg-red-50 rounded-lg border border-red-200 text-center">
+                    <p className="text-sm text-red-600 mb-2">{goalsError}</p>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={fetchSavingsGoals}
+                      className="text-red-600 border-red-300 hover:bg-red-100"
+                    >
+                      Try Again
+                    </Button>
                   </div>
-                  <Progress value={25} className="h-2 mb-2" />
-                  <p className="text-xs text-green-700">25% complete • $600 to go</p>
-                </div>
+                ) : savingsGoals.length > 0 ? (
+                  savingsGoals.map((goal: any) => {
+                    const progress = goal.target_amount > 0 ? (goal.current_amount / goal.target_amount) * 100 : 0;
+                    const remaining = goal.target_amount - goal.current_amount;
+                    const isCompleted = progress >= 100;
+                    
+                    return (
+                      <div key={goal.id} className={`p-3 rounded-lg border ${
+                        isCompleted ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={`font-medium ${
+                            isCompleted ? 'text-green-900' : 'text-blue-900'
+                          }`}>{goal.name}</span>
+                          <span className={`text-sm ${
+                            isCompleted ? 'text-green-600' : 'text-blue-600'
+                          }`}>${goal.current_amount} / ${goal.target_amount}</span>
+                        </div>
+                        <Progress value={Math.min(progress, 100)} className="h-2 mb-2" />
+                        <p className={`text-xs ${
+                          isCompleted ? 'text-green-700' : 'text-blue-700'
+                        }`}>
+                          {isCompleted ? '🎉 Goal completed!' : `${Math.round(progress)}% complete • $${remaining} to go`}
+                        </p>
+                        {goal.deadline && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Deadline: {new Date(goal.deadline).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-center">
+                    <p className="text-sm text-gray-600">No savings goals yet</p>
+                    <p className="text-xs text-gray-500 mt-1">Create your first goal to start saving!</p>
+                  </div>
+                )}
                 
-                <Button size="sm" className="w-full" variant="outline">
-                  <Target className="w-4 h-4 mr-2" />
-                  Create New Goal
-                </Button>
+                {!showCreateGoal ? (
+                  <Button size="sm" className="w-full" variant="outline" onClick={() => setShowCreateGoal(true)}>
+                    <Target className="w-4 h-4 mr-2" />
+                    Create New Goal
+                  </Button>
+                ) : (
+                  <div className="space-y-3 p-3 bg-white rounded-lg border">
+                    <Input 
+                      placeholder="Goal name (e.g., Emergency Fund)"
+                      value={newGoalName}
+                      onChange={(e) => setNewGoalName(e.target.value)}
+                    />
+                    <Input 
+                      type="number"
+                      placeholder="Target amount ($)"
+                      value={newGoalTarget}
+                      onChange={(e) => setNewGoalTarget(e.target.value)}
+                    />
+                    <Input 
+                      type="date"
+                      placeholder="Deadline"
+                      value={newGoalDeadline}
+                      onChange={(e) => setNewGoalDeadline(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleCreateSavingsGoal} disabled={!newGoalName || !newGoalTarget || !newGoalDeadline}>
+                        Create Goal
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => {
+                        setShowCreateGoal(false);
+                        setNewGoalName('');
+                        setNewGoalTarget('');
+                        setNewGoalDeadline('');
+                      }}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="p-2 bg-yellow-50 rounded border border-yellow-200">
                   <p className="text-xs text-yellow-800">
