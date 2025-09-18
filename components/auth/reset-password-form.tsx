@@ -172,7 +172,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
       
       // Redirect to sign in after a short delay
       setTimeout(() => {
-        router.push('/auth/signin?message=Password reset successful. Please sign in with your new password.');
+        router.push('/login?message=Password reset successful. Please sign in with your new password.');
       }, 3000);
 
     } catch (error) {
@@ -228,7 +228,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         <p className="text-muted-foreground">
           Your password has been successfully updated. You will be redirected to the sign-in page shortly.
         </p>
-        <Button onClick={() => router.push('/auth/signin')} className="w-full">
+        <Button onClick={() => router.push('/login')} className="w-full">
           Continue to Sign In
         </Button>
       </div>
@@ -254,7 +254,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
             Request New Reset Link
           </Button>
           <Button 
-            onClick={() => router.push('/auth/signin')}
+            onClick={() => router.push('/login')}
             variant="ghost" 
             className="w-full"
           >
@@ -274,7 +274,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
         </div>
         <h2 className="text-2xl font-semibold">Reset Your Password</h2>
         <p className="text-muted-foreground">
-          Enter your new password below. Make sure it's strong and secure.
+          Enter your new password below. Make sure it&apos;s strong and secure.
         </p>
       </div>
 

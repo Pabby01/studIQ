@@ -123,29 +123,34 @@ export async function POST(request: NextRequest) {
       return AuthErrorHandler.handleInternalError(new Error('Database connection failed'), endpoint);
     }
 
-    // Check if user exists
-    const userResult = await safeExecute(
-      () => supabase.auth.admin.listUsers(),
-      endpoint,
-      AuthErrorType.DATABASE_ERROR
-    );
-
-    if (!userResult.success) {
-      return userResult.error!;
-    }
-
-    const { data: usersData, error: userError } = userResult.data!;
-    const user = usersData?.users?.find(u => u.email === email);
+    // Check if user exists in public.users table
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, email')
+      .eq('email', email)
+      .single();
 
     if (userError) {
-      AuthLogger.error('Error checking user existence', { endpoint, email, error: userError });
-      // Don't reveal if user exists or not for security
-      return NextResponse.json(
-        { 
-          message: 'If an account with this email exists, you will receive password reset instructions.'
-        },
-        { status: 200 }
-      );
+      if (userError.code === 'PGRST116') {
+        // No user found with this email
+        AuthLogger.info('Password reset requested for non-existent email', { endpoint, email });
+        // Don't reveal if user exists or not for security
+        return NextResponse.json(
+          { 
+            message: 'If an account with this email exists, you will receive password reset instructions.'
+          },
+          { status: 200 }
+        );
+      } else {
+        AuthLogger.error('Error checking user existence', { endpoint, email, error: userError });
+        // Don't reveal if user exists or not for security
+        return NextResponse.json(
+          { 
+            message: 'If an account with this email exists, you will receive password reset instructions.'
+          },
+          { status: 200 }
+        );
+      }
     }
 
     if (!user) {

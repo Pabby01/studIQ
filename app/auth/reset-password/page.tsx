@@ -48,7 +48,7 @@ function ResetPasswordContent() {
                   Request New Reset Link
                 </Button>
                 <Button 
-                  onClick={() => window.location.href = '/auth/signin'}
+                  onClick={() => window.location.href = '/login'}
                   variant="ghost" 
                   className="w-full"
                 >
