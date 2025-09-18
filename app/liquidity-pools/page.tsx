@@ -28,7 +28,7 @@ const LIQUIDITY_POOLS = [
     volume24h: '$450K',
     fee: 0.25,
     risk: 'Medium',
-    url: 'https://raydium.io/liquidity-pools',
+    url: 'https://raydium.io/pools',
     logo: '🌊'
   },
   {
@@ -109,7 +109,7 @@ export default function LiquidityPoolsPage() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center space-x-4 mb-8">
-          <Link href="/app">
+          <Link href="/finance">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Finance Hub

@@ -25,7 +25,7 @@ const STAKING_PROVIDERS = [
     minStake: 0.1,
     lockPeriod: '7 days',
     description: 'Secure and reliable staking with competitive returns',
-    url: 'https://vote.jup.ag',
+    url: 'https://jup.ag/stake',
     logo: '🚀'
   },
   {
@@ -77,7 +77,7 @@ export default function StakingPage() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="flex items-center space-x-4 mb-8">
-          <Link href="/app">
+          <Link href="/finance">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Finance Hub
