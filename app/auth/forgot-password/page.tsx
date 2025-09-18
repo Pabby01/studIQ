@@ -1,3 +1,5 @@
+'use client';
+
 import { Suspense } from 'react';
 import { ForgotPasswordForm } from '@/components/auth/forgot-password-form';
 import { Loader2 } from 'lucide-react';
