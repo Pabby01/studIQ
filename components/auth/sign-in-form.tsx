@@ -47,7 +47,16 @@ export function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
       </div>
 
       <div>
-        <Label htmlFor="password">Password</Label>
+        <div className="flex justify-between items-center">
+          <Label htmlFor="password">Password</Label>
+          <button
+            type="button"
+            onClick={() => window.location.href = '/auth/forgot-password'}
+            className="text-sm text-blue-600 hover:text-blue-700"
+          >
+            Forgot password?
+          </button>
+        </div>
         <Input
           id="password"
           type="password"
