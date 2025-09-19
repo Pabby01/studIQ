@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     // Get recent XP transactions
     const { data: transactions, error: transError } = await supabase
-      .from('xp_transactions')
+      .from('transactions')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })

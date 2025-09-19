@@ -23,9 +23,8 @@ export async function GET(request: NextRequest) {
         total_xp,
         level,
         profiles:user_id (
-          full_name,
-          avatar_url,
-          username
+          username,
+          avatar_url
         )
       `)
       .order('total_xp', { ascending: false })
@@ -35,7 +34,7 @@ export async function GET(request: NextRequest) {
     if (category !== 'all') {
       // Get users with XP in specific category
       const { data: categoryUsers, error: categoryError } = await supabase
-        .from('xp_transactions')
+        .from('transactions')
         .select('user_id')
         .eq('category', category)
         .order('created_at', { ascending: false });
@@ -79,9 +78,8 @@ export async function GET(request: NextRequest) {
       totalXp: entry.total_xp,
       level: entry.level,
       profile: entry.profiles ? {
-        fullName: Array.isArray(entry.profiles) ? entry.profiles[0]?.full_name : (entry.profiles as any).full_name,
-        avatarUrl: Array.isArray(entry.profiles) ? entry.profiles[0]?.avatar_url : (entry.profiles as any).avatar_url,
-        username: Array.isArray(entry.profiles) ? entry.profiles[0]?.username : (entry.profiles as any).username
+        username: Array.isArray(entry.profiles) ? entry.profiles[0]?.username : (entry.profiles as any).username,
+        avatarUrl: Array.isArray(entry.profiles) ? entry.profiles[0]?.avatar_url : (entry.profiles as any).avatar_url
       } : null,
       isCurrentUser: entry.user_id === user.id
     })) || [];

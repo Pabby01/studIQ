@@ -52,8 +52,8 @@ export async function GET(request: NextRequest) {
         *,
         creator:users!collaboration_tools_created_by_fkey(username, avatar_url),
         club:clubs(name, id),
-        likes_count:collaboration_tool_likes(count),
-        is_liked:collaboration_tool_likes!inner(user_id)
+        shares_count:collaboration_tool_shares(count),
+        is_shared:collaboration_tool_shares!inner(shared_with)
       `);
 
     if (type) {

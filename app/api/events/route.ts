@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (upcoming) {
-      query = query.gte('date', new Date().toISOString());
+      query = query.gte('event_date', new Date().toISOString());
     }
 
     if (my_events) {
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
       query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
     }
 
-    const { data: events, error } = await query.order('date', { ascending: true });
+    const { data: events, error } = await query.order('event_date', { ascending: true });
 
     if (error) {
       console.error('Error fetching events:', error);

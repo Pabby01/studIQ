@@ -231,21 +231,21 @@ create trigger initialize_reputation_on_user_creation
 create or replace function public.update_user_reputation_from_xp()
 returns trigger as $$
 declare
-  total_xp integer;
+  calculated_total_xp integer;
   new_level integer;
 begin
   -- Calculate total XP for the user
-  select coalesce(sum(points), 0) into total_xp
+  select coalesce(sum(points), 0) into calculated_total_xp
   from public.campus_xp
   where user_id = new.user_id;
   
   -- Calculate level (every 100 XP = 1 level)
-  new_level := greatest(1, total_xp / 100 + 1);
+  new_level := greatest(1, calculated_total_xp / 100 + 1);
   
   -- Update user reputation
   update public.user_reputation
   set 
-    total_xp = total_xp,
+    total_xp = calculated_total_xp,
     level = new_level,
     updated_at = now()
   where user_id = new.user_id;
