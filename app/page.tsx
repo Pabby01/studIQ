@@ -57,7 +57,7 @@ export default function Home() {
               <div className="mt-6 flex items-center gap-6 text-sm text-slate-500">
                 <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-indigo-500" /> AI Learning</div>
                 <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-rose-500" /> DeFi Finance</div>
-                <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Campus Tools</div>
+                <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" /> Campus Hub</div>
               </div>
             </div>
             <div className="relative">
@@ -97,7 +97,7 @@ export default function Home() {
             {[
               { title: 'AI Learning Hub', desc: 'Chat with an AI tutor, generate notes, and practice with smart quizzes.', color: 'from-indigo-600 to-violet-600', icon: Brain, slug: 'ai-learning' },
               { title: 'Finance Hub', desc: 'Track budgets, monitor portfolio, and learn DeFi safely.', color: 'from-emerald-600 to-cyan-600', icon: Wallet, slug: 'finance-hub' },
-              { title: 'Campus Tools', desc: 'Discover events, manage clubs, and collaborate with peers.', color: 'from-rose-600 to-amber-600', icon: Users, slug: 'campus-tools' },
+              { title: 'Campus Hub', desc: 'Discover events, manage clubs, and collaborate with peers.', color: 'from-rose-600 to-amber-600', icon: Users, slug: 'campus-hub' },
               { title: 'Profile & Goals', desc: 'Set learning goals and showcase achievements.', color: 'from-sky-600 to-blue-600', icon: UserIcon, slug: 'profile-goals' },
               { title: 'Secure by Design', desc: 'Privacy-first architecture with least-privilege access.', color: 'from-slate-700 to-slate-900', icon: Shield, slug: 'secure-design' },
               { title: 'Mobile Ready', desc: 'Responsive UI optimized for every screen size.', color: 'from-teal-600 to-emerald-600', icon: Smartphone, slug: 'mobile-ready' },

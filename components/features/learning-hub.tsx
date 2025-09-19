@@ -24,6 +24,9 @@ import { useAuth } from '@/components/providers/providers';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useRouter } from 'next/navigation';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import { errorHandler, handleAsyncOperation, handleApiCall } from '@/lib/error-handler';
+import { subscribeToUserData, unsubscribe } from '@/lib/realtime-service';
+import { cacheGet, cacheSet, debounce, measurePerformance } from '@/lib/performance-optimizer';
 
 interface Material {
   id: string;
@@ -105,46 +108,68 @@ export function LearningHub() {
   const router = useRouter();
 
   useEffect(() => {
+    if (!user) return;
+
     const loadMaterials = async () => {
       try {
-        setLoading(true);
-        const token = await getAccessToken();
-        const res = await fetch('/api/materials', {
-          headers: {
-            'content-type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          }
-        });
-        if (!res.ok) {
-          throw new Error('Failed to load materials');
+        const cacheKey = `materials_${user.id}`;
+        const cachedMaterials = cacheGet<Material[]>(cacheKey);
+        
+        if (cachedMaterials) {
+          setMaterials(cachedMaterials);
+          return;
         }
-        const json = await res.json();
-        setMaterials(json.items || []);
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: 'Failed to load materials. Please try again.',
-          variant: 'destructive'
+
+        const token = await getAccessToken();
+        const response = await measurePerformance('load_materials', async () => {
+          return fetch('/api/materials', {
+            headers: {
+              'content-type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            cache: 'no-store',
+          });
         });
-      } finally {
-        setLoading(false);
+
+        if (response.ok) {
+          const data = await response.json();
+          const materialsData = data.items || [];
+          setMaterials(materialsData);
+          cacheSet(cacheKey, materialsData, 300000); // Cache for 5 minutes
+        }
+      } catch (error) {
+        const appError = errorHandler.parseError(error as Error);
+        errorHandler.handleError(appError);
       }
     };
 
     const loadCourses = async () => {
       try {
-        const token = await getAccessToken();
-        const res = await fetch('/api/courses', {
-          headers: {
-            'content-type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          }
-        });
-        if (!res.ok) {
-          throw new Error('Failed to load courses');
+        const cacheKey = `courses_${user.id}`;
+        const cachedCourses = cacheGet<Course[]>(cacheKey);
+        
+        if (cachedCourses) {
+          setCourses(cachedCourses);
+          return;
         }
-        const json = await res.json();
-        setCourses(json.items || []);
+
+        const token = await getAccessToken();
+        const response = await measurePerformance('load_courses', async () => {
+          return fetch('/api/courses', {
+            headers: {
+              'content-type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            cache: 'no-store',
+          });
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const coursesData = data.items || [];
+          setCourses(coursesData);
+          cacheSet(cacheKey, coursesData, 300000); // Cache for 5 minutes
+        }
       } catch (error) {
         toast({
           title: 'Error',
@@ -155,16 +180,14 @@ export function LearningHub() {
     };
 
     const setupRealtimeSubscription = () => {
-      if (!user) return;
-
-      realtimeChannel.current = supabase
-        .channel(`materials_${user.id}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'course_materials',
-          filter: `user_id=eq.${user.id}`
-        }, (payload: RealtimePostgresChangesPayload<any>) => {
+      const subscriptionId = subscribeToUserData(
+        user.id,
+        'course_materials',
+        (payload) => {
+          // Invalidate cache when data changes
+          const cacheKey = `materials_${user.id}`;
+          cacheSet(cacheKey, null); // Clear cache
+          
           if (payload.eventType === 'INSERT') {
             setMaterials((prev) => [payload.new as Material, ...prev]);
           } else if (payload.eventType === 'DELETE') {
@@ -174,11 +197,15 @@ export function LearningHub() {
               prev.map((m) => (m.id === (payload as any).new.id ? (payload.new as Material) : m))
             );
           }
-        })
-        .subscribe();
+        },
+        (error) => {
+          const appError = errorHandler.parseError(error);
+          errorHandler.handleError(appError);
+        }
+      );
 
       return () => {
-        realtimeChannel.current?.unsubscribe();
+        unsubscribe(subscriptionId);
       };
     };
 
@@ -189,7 +216,7 @@ export function LearningHub() {
     return () => {
       cleanup?.();
     };
-  }, [getAccessToken, user, toast, supabase]);
+  }, [getAccessToken, user, toast]);
 
   const onChooseFile = () => fileInputRef.current?.click();
 

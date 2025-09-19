@@ -38,7 +38,7 @@ export default function WhyPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <Users className="h-6 w-6 text-rose-600" />
             <h3 className="mt-3 font-semibold">Built for student life</h3>
-            <p className="mt-1 text-sm text-slate-600">Campus tools that simplify events, clubs, and peer collaboration.</p>
+            <p className="mt-1 text-sm text-slate-600">Campus hub that simplifies events, clubs, and peer collaboration.</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <GraduationCap className="h-6 w-6 text-amber-600" />

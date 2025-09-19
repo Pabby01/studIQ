@@ -31,8 +31,8 @@ const featureMap: Record<string, { title: string; desc: string; icon: any; color
       { heading: 'DeFi 101', body: 'Learn DeFi concepts safely with guided modules and warnings.' },
     ],
   },
-  'campus-tools': {
-    title: 'Campus Tools',
+  'campus-hub': {
+    title: 'Campus Hub',
     desc: 'Organize clubs, discover events, and collaborate with your peers.',
     icon: Users,
     color: 'from-rose-600 to-amber-600',
@@ -81,7 +81,7 @@ export function generateStaticParams() {
   return [
     { slug: 'ai-learning' },
     { slug: 'finance-hub' },
-    { slug: 'campus-tools' },
+    { slug: 'campus-hub' },
     { slug: 'profile-goals' },
     { slug: 'secure-design' },
     { slug: 'mobile-ready' },

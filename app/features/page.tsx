@@ -8,7 +8,7 @@ import { Brain, Wallet, Users, User as UserIcon, Shield, Smartphone, ArrowRight 
 const features = [
   { title: 'AI Learning Hub', slug: 'ai-learning', desc: 'Chat with AI tutor, generate notes, and take adaptive quizzes.', icon: Brain, color: 'from-indigo-600 to-violet-600' },
   { title: 'Finance Hub', slug: 'finance-hub', desc: 'Budgeting, portfolio tracking, and DeFi learning, simplified.', icon: Wallet, color: 'from-emerald-600 to-cyan-600' },
-  { title: 'Campus Tools', slug: 'campus-tools', desc: 'Events, clubs management, and collaboration with peers.', icon: Users, color: 'from-rose-600 to-amber-600' },
+  { title: 'Campus Hub', slug: 'campus-hub', desc: 'Events, clubs management, and collaboration with peers.', icon: Users, color: 'from-rose-600 to-amber-600' },
   { title: 'Profile & Goals', slug: 'profile-goals', desc: 'Set goals, track progress, and showcase achievements.', icon: UserIcon, color: 'from-sky-600 to-blue-600' },
   { title: 'Secure by Design', slug: 'secure-design', desc: 'Privacy-first with least privilege and RLS-backed data.', icon: Shield, color: 'from-slate-700 to-slate-900' },
   { title: 'Mobile Ready', slug: 'mobile-ready', desc: 'Responsive layouts optimized for all screen sizes.', icon: Smartphone, color: 'from-teal-600 to-emerald-600' },

@@ -29,11 +29,6 @@ const NAV_ITEMS = [
     icon: DollarSign,
   },
   {
-    id: 'campus' as TabType,
-    label: 'Campus Tools',
-    icon: MapPin,
-  },
-  {
     id: 'campus-hub' as TabType,
     label: 'Campus Hub',
     icon: Users,

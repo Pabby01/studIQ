@@ -30,6 +30,7 @@ import QRCode from 'qrcode';
 import { toast } from 'sonner';
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import Image from 'next/image';
+import { errorHandler, handleAsyncOperation, handleApiCall } from '@/lib/error-handler';
 
 const WALLET_DATA = {
   balance: 125.50,
