@@ -22,7 +22,7 @@ async function validateToken(token: string) {
   
   if (!supabase) {
     console.error('Failed to initialize Supabase client in validateToken');
-    throw new Error('Database connection failed');
+    return { valid: false, error: 'Database connection failed' };
   }
   
   const tokenHash = createHash('sha256').update(token).digest('hex');

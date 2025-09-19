@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BookOpen, DollarSign, MapPin, User, Bell, Search, CheckCircle2 } from 'lucide-react';
+import { BookOpen, DollarSign, MapPin, User, Bell, Search, CheckCircle2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -32,6 +32,11 @@ const NAV_ITEMS = [
     id: 'campus' as TabType,
     label: 'Campus Tools',
     icon: MapPin,
+  },
+  {
+    id: 'campus-hub' as TabType,
+    label: 'Campus Hub',
+    icon: Users,
   },
 ];
 

@@ -6,11 +6,12 @@ import { DesktopNavigation } from './desktop-navigation';
 import { LearningHub } from '@/components/features/learning-hub';
 import { FinanceHub } from '@/components/features/finance-hub';
 import { CampusTools } from '@/components/features/campus-tools';
+import CampusHub from '@/components/features/campus-hub';
 import { ProfilePage } from '@/components/features/profile-page';
 import { WalletConnect } from '@/components/wallet/wallet-connect';
 import { WalletBalance } from '@/components/wallet/wallet-balance';
 
-export type TabType = 'learning' | 'finance' | 'campus' | 'profile' | 'wallet';
+export type TabType = 'learning' | 'finance' | 'campus' | 'campus-hub' | 'profile' | 'wallet';
 
 export function MainLayout() {
   const [activeTab, setActiveTab] = useState<TabType>('learning');
@@ -23,6 +24,8 @@ export function MainLayout() {
         return <FinanceHub />;
       case 'campus':
         return <CampusTools />;
+      case 'campus-hub':
+        return <CampusHub />;
       case 'profile':
         return <ProfilePage />;
       case 'wallet':
