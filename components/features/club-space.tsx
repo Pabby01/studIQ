@@ -18,6 +18,11 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/components/providers/providers';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { 
+  subscribeToClubSpace,
+  unsubscribeMultiple,
+  getRealtimeStatus
+} from '@/lib/realtime-service';
+import { 
   Users, 
   Calendar, 
   BookOpen, 
@@ -139,14 +144,21 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
   const supabase = createClientComponentClient();
   
   // State management
-  const [activeTab, setActiveTab] = useState('overview');
+  const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState<ClubMember[]>([]);
   const [events, setEvents] = useState<ClubEvent[]>([]);
   const [resources, setResources] = useState<ClubResource[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState<'admin' | 'moderator' | 'member'>('member');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<'admin' | 'moderator' | 'member' | null>(null);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showEventDialog, setShowEventDialog] = useState(false);
+  const [showResourceDialog, setShowResourceDialog] = useState(false);
   
+  // Add state for real-time club data
+  const [clubData, setClubData] = useState<Club>(club);
+  const [realTimeMemberCount, setRealTimeMemberCount] = useState(club.member_count);
+
   // Dialog states
   const [showCreateEvent, setShowCreateEvent] = useState(false);
   const [showCreateResource, setShowCreateResource] = useState(false);
@@ -190,6 +202,18 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
         }
       }
 
+      // Fetch updated club data with current member count
+      const { data: updatedClubData } = await supabase
+        .from('clubs')
+        .select('*')
+        .eq('id', club.id)
+        .single();
+
+      if (updatedClubData) {
+        setClubData(updatedClubData);
+        setRealTimeMemberCount(updatedClubData.member_count);
+      }
+
       // Fetch members
       const { data: membersData } = await supabase
         .from('club_members')
@@ -202,6 +226,9 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
 
       if (membersData) {
         setMembers(membersData);
+        // Update real-time member count based on actual members
+        setRealTimeMemberCount(membersData.length);
+        
         // Find current user's role
         const currentUserMember = membersData.find(m => m.user_id === currentUserId);
         if (currentUserMember) {
@@ -245,78 +272,62 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
     fetchClubData();
   }, [fetchClubData]);
 
-  // Real-time subscription for club member updates
+  // Enhanced real-time subscription using the optimized service
   useEffect(() => {
-    const channel = supabase
-      .channel('club_members_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'club_members',
-          filter: `club_id=eq.${club.id}`,
-        },
-        (payload) => {
-          console.log('Club members change detected:', payload);
-          // Refresh club data when members change
-          fetchClubData();
+    if (!club.id) return;
+
+    // Subscribe to all club-related data using the enhanced service
+    const subscriptionIds = subscribeToClubSpace(club.id, {
+      onClubUpdate: (data) => {
+        console.log('Club data updated:', data);
+        setClubData(prevData => ({
+          ...prevData,
+          ...(data.new as Club)
+        }));
+        // Update member count from the new club data
+        if (data.new && (data.new as any).member_count !== undefined) {
+          setRealTimeMemberCount((data.new as any).member_count);
         }
-      )
-      .subscribe();
+      },
+      onMembersUpdate: (data) => {
+        console.log('Club members updated:', data);
+        setMembers(prevMembers => {
+          if (data.new) {
+            return [...prevMembers, data.new];
+          }
+          return prevMembers.filter(m => m.id !== (data.old as any)?.id);
+        });
+        // Update member count based on current members array length
+        setRealTimeMemberCount(prevCount => {
+          if (data.new) {
+            return prevCount + 1; // Member added
+          } else if (data.old) {
+            return Math.max(0, prevCount - 1); // Member removed
+          }
+          return prevCount;
+        });
+      },
+      onEventsUpdate: (data) => {
+        console.log('Club events updated:', data);
+        fetchClubData(); // Refresh to get complete event data
+      },
+      onResourcesUpdate: (data) => {
+        console.log('Club resources updated:', data);
+        fetchClubData(); // Refresh to get complete resource data
+      },
+      onMessagesUpdate: (data) => {
+        console.log('Club messages updated:', data);
+        // Messages are handled by the ClubChat component
+      }
+    });
 
+    // Cleanup function
     return () => {
-      supabase.removeChannel(channel);
+      if (subscriptionIds.length > 0) {
+        unsubscribeMultiple(subscriptionIds);
+      }
     };
-  }, [club.id, supabase, fetchClubData]);
-
-  // Real-time subscription for club events
-  useEffect(() => {
-    const channel = supabase
-      .channel('club_events_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'club_events',
-          filter: `club_id=eq.${club.id}`,
-        },
-        (payload) => {
-          console.log('Club events change detected:', payload);
-          fetchClubData();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [club.id, supabase, fetchClubData]);
-
-  // Real-time subscription for club resources
-  useEffect(() => {
-    const channel = supabase
-      .channel('club_resources_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'club_resources',
-          filter: `club_id=eq.${club.id}`,
-        },
-        (payload) => {
-          console.log('Club resources change detected:', payload);
-          fetchClubData();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [club.id, supabase, fetchClubData]);
+  }, [club.id, fetchClubData]);
 
   // Create event
   const createEvent = async () => {
@@ -540,7 +551,7 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Total Members</span>
-                    <span className="font-semibold">{members.length}</span>
+                    <span className="font-semibold">{realTimeMemberCount}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Upcoming Events</span>

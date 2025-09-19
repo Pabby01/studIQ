@@ -387,6 +387,133 @@ class RealtimeService {
     );
   }
 
+  // Club-specific subscription methods
+  subscribeToClubData(
+    clubId: string,
+    callback: (payload: RealtimePostgresChangesPayload<any>) => void,
+    onError?: (error: Error) => void
+  ): string {
+    return this.subscribe(
+      `club_data_${clubId}`,
+      'clubs',
+      callback,
+      `id=eq.${clubId}`,
+      onError
+    );
+  }
+
+  subscribeToClubMembers(
+    clubId: string,
+    callback: (payload: RealtimePostgresChangesPayload<any>) => void,
+    onError?: (error: Error) => void
+  ): string {
+    return this.subscribe(
+      `club_members_${clubId}`,
+      'club_members',
+      callback,
+      `club_id=eq.${clubId}`,
+      onError
+    );
+  }
+
+  subscribeToClubEvents(
+    clubId: string,
+    callback: (payload: RealtimePostgresChangesPayload<any>) => void,
+    onError?: (error: Error) => void
+  ): string {
+    return this.subscribe(
+      `club_events_${clubId}`,
+      'club_events',
+      callback,
+      `club_id=eq.${clubId}`,
+      onError
+    );
+  }
+
+  subscribeToClubResources(
+    clubId: string,
+    callback: (payload: RealtimePostgresChangesPayload<any>) => void,
+    onError?: (error: Error) => void
+  ): string {
+    return this.subscribe(
+      `club_resources_${clubId}`,
+      'club_resources',
+      callback,
+      `club_id=eq.${clubId}`,
+      onError
+    );
+  }
+
+  subscribeToClubMessages(
+    clubId: string,
+    callback: (payload: RealtimePostgresChangesPayload<any>) => void,
+    onError?: (error: Error) => void
+  ): string {
+    return this.subscribe(
+      `club_messages_${clubId}`,
+      'club_messages',
+      callback,
+      `club_id=eq.${clubId}`,
+      onError
+    );
+  }
+
+  subscribeToClubMessageReactions(
+    clubId: string,
+    callback: (payload: RealtimePostgresChangesPayload<any>) => void,
+    onError?: (error: Error) => void
+  ): string {
+    return this.subscribe(
+      `club_message_reactions_${clubId}`,
+      'message_reactions',
+      callback,
+      `message_id.in.(select id from club_messages where club_id = '${clubId}')`,
+      onError
+    );
+  }
+
+  // Comprehensive club space subscription - subscribes to all club-related data at once
+  subscribeToClubSpace(
+    clubId: string,
+    callbacks: {
+      onClubUpdate?: (payload: RealtimePostgresChangesPayload<any>) => void;
+      onMembersUpdate?: (payload: RealtimePostgresChangesPayload<any>) => void;
+      onEventsUpdate?: (payload: RealtimePostgresChangesPayload<any>) => void;
+      onResourcesUpdate?: (payload: RealtimePostgresChangesPayload<any>) => void;
+      onMessagesUpdate?: (payload: RealtimePostgresChangesPayload<any>) => void;
+      onReactionsUpdate?: (payload: RealtimePostgresChangesPayload<any>) => void;
+    },
+    onError?: (error: Error) => void
+  ): string[] {
+    const subscriptionIds: string[] = [];
+
+    if (callbacks.onClubUpdate) {
+      subscriptionIds.push(this.subscribeToClubData(clubId, callbacks.onClubUpdate, onError));
+    }
+
+    if (callbacks.onMembersUpdate) {
+      subscriptionIds.push(this.subscribeToClubMembers(clubId, callbacks.onMembersUpdate, onError));
+    }
+
+    if (callbacks.onEventsUpdate) {
+      subscriptionIds.push(this.subscribeToClubEvents(clubId, callbacks.onEventsUpdate, onError));
+    }
+
+    if (callbacks.onResourcesUpdate) {
+      subscriptionIds.push(this.subscribeToClubResources(clubId, callbacks.onResourcesUpdate, onError));
+    }
+
+    if (callbacks.onMessagesUpdate) {
+      subscriptionIds.push(this.subscribeToClubMessages(clubId, callbacks.onMessagesUpdate, onError));
+    }
+
+    if (callbacks.onReactionsUpdate) {
+      subscriptionIds.push(this.subscribeToClubMessageReactions(clubId, callbacks.onReactionsUpdate, onError));
+    }
+
+    return subscriptionIds;
+  }
+
   // Cleanup method
   destroy(): void {
     this.stopHeartbeat();
@@ -420,8 +547,68 @@ export function subscribeToRecord(
   return realtimeService.subscribeToRecord(recordId, table, callback, onError);
 }
 
+// Club-specific utility functions
+export function subscribeToClubData(
+  clubId: string,
+  callback: (payload: RealtimePostgresChangesPayload<any>) => void,
+  onError?: (error: Error) => void
+): string {
+  return realtimeService.subscribeToClubData(clubId, callback, onError);
+}
+
+export function subscribeToClubMembers(
+  clubId: string,
+  callback: (payload: RealtimePostgresChangesPayload<any>) => void,
+  onError?: (error: Error) => void
+): string {
+  return realtimeService.subscribeToClubMembers(clubId, callback, onError);
+}
+
+export function subscribeToClubEvents(
+  clubId: string,
+  callback: (payload: RealtimePostgresChangesPayload<any>) => void,
+  onError?: (error: Error) => void
+): string {
+  return realtimeService.subscribeToClubEvents(clubId, callback, onError);
+}
+
+export function subscribeToClubResources(
+  clubId: string,
+  callback: (payload: RealtimePostgresChangesPayload<any>) => void,
+  onError?: (error: Error) => void
+): string {
+  return realtimeService.subscribeToClubResources(clubId, callback, onError);
+}
+
+export function subscribeToClubMessages(
+  clubId: string,
+  callback: (payload: RealtimePostgresChangesPayload<any>) => void,
+  onError?: (error: Error) => void
+): string {
+  return realtimeService.subscribeToClubMessages(clubId, callback, onError);
+}
+
+export function subscribeToClubSpace(
+  clubId: string,
+  callbacks: {
+    onClubUpdate?: (payload: RealtimePostgresChangesPayload<any>) => void;
+    onMembersUpdate?: (payload: RealtimePostgresChangesPayload<any>) => void;
+    onEventsUpdate?: (payload: RealtimePostgresChangesPayload<any>) => void;
+    onResourcesUpdate?: (payload: RealtimePostgresChangesPayload<any>) => void;
+    onMessagesUpdate?: (payload: RealtimePostgresChangesPayload<any>) => void;
+    onReactionsUpdate?: (payload: RealtimePostgresChangesPayload<any>) => void;
+  },
+  onError?: (error: Error) => void
+): string[] {
+  return realtimeService.subscribeToClubSpace(clubId, callbacks, onError);
+}
+
 export function unsubscribe(subscriptionId: string): void {
   realtimeService.unsubscribe(subscriptionId);
+}
+
+export function unsubscribeMultiple(subscriptionIds: string[]): void {
+  subscriptionIds.forEach(id => realtimeService.unsubscribe(id));
 }
 
 export function getRealtimeStatus() {

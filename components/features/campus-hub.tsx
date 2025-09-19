@@ -1,6 +1,4 @@
-'use client';
-
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +67,8 @@ interface Club {
   category: string;
   is_private: boolean;
   max_members: number;
+  banner_url?: string;
+  avatar_url?: string;
   created_at: string;
   created_by: string;
   created_by_user: {
@@ -237,7 +237,7 @@ const RECENT_PAYMENTS: PaymentHistory[] = [
   { id: '3', merchant: 'Campus Shuttle', amount: '2.00', token: 'Credits', time: '2 days ago' },
 ];
 
-export default function CampusHub() {
+function CampusHub() {
   const { user } = useAuth();
   const supabase = createClientComponentClient();
   
@@ -270,6 +270,8 @@ export default function CampusHub() {
     category: 'academic',
     is_private: false,
     max_members: 500,
+    banner_url: '',
+    avatar_url: '',
   });
   
   const [eventForm, setEventForm] = useState({
@@ -537,6 +539,8 @@ export default function CampusHub() {
           category: 'academic',
           is_private: false,
           max_members: 500,
+          banner_url: '',
+          avatar_url: '',
         });
         fetchClubs();
         fetchUserClubs(); // Update user clubs to reflect the new membership
@@ -1233,6 +1237,28 @@ export default function CampusHub() {
                       className="border-rose-200 focus:border-rose-500 focus:ring-rose-500"
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="banner-url" className="text-gray-700">Club Banner URL (Optional)</Label>
+                    <Input
+                      id="banner-url"
+                      type="url"
+                      value={clubForm.banner_url}
+                      onChange={(e) => setClubForm({ ...clubForm, banner_url: e.target.value })}
+                      placeholder="https://example.com/banner.jpg"
+                      className="border-rose-200 focus:border-rose-500 focus:ring-rose-500"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="avatar-url" className="text-gray-700">Club Avatar URL (Optional)</Label>
+                    <Input
+                      id="avatar-url"
+                      type="url"
+                      value={clubForm.avatar_url}
+                      onChange={(e) => setClubForm({ ...clubForm, avatar_url: e.target.value })}
+                      placeholder="https://example.com/avatar.jpg"
+                      className="border-rose-200 focus:border-rose-500 focus:ring-rose-500"
+                    />
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button 
@@ -1512,4 +1538,6 @@ export default function CampusHub() {
       </Tabs>
     </div>
   );
-}
+};
+
+export default CampusHub;

@@ -83,7 +83,7 @@ export async function POST(
       })
       .select(`
         *,
-        profiles:user_id (
+        user_profile:users!club_messages_user_id_fkey (
           full_name,
           avatar_url,
           username
@@ -92,7 +92,7 @@ export async function POST(
           id,
           content,
           type,
-          profiles:user_id (
+          user_profile:users!club_messages_user_id_fkey (
             full_name,
             username
           )
@@ -202,7 +202,7 @@ export async function GET(
       .from('club_messages')
       .select(`
         *,
-        profiles:user_id (
+        user_profile:users!club_messages_user_id_fkey (
           full_name,
           avatar_url,
           username
@@ -211,7 +211,7 @@ export async function GET(
           id,
           content,
           type,
-          profiles:user_id (
+          user_profile:users!club_messages_user_id_fkey (
             full_name,
             username
           )
@@ -220,7 +220,7 @@ export async function GET(
           id,
           emoji,
           user_id,
-          profiles:user_id (
+          user_profile:users!message_reactions_user_id_fkey (
             username
           )
         )
