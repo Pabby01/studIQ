@@ -616,7 +616,7 @@ export default function CampusHub() {
         unsubscribe(subscriptionId);
       };
     }
-  }, [user]);
+  }, [fetchNotifications, user]);
 
   // Close notifications when clicking outside
   useEffect(() => {
