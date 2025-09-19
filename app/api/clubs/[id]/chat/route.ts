@@ -32,15 +32,26 @@ export async function POST(
     const { content, type, reply_to, metadata } = messageSchema.parse(body);
     const clubId = params.id;
 
+    // Get the user's ID from the users table
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('auth_id', user.id)
+      .single();
+
+    if (userError || !userData) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
     // Check if user is a member of the club
     const { data: membership, error: memberError } = await supabase
       .from('club_members')
-      .select('role, status')
+      .select('role')
       .eq('club_id', clubId)
-      .eq('user_id', user.id)
+      .eq('user_id', userData.id)
       .single();
 
-    if (memberError || !membership || membership.status !== 'active') {
+    if (memberError || !membership) {
       return NextResponse.json({ error: 'Not a member of this club' }, { status: 403 });
     }
 
@@ -63,7 +74,7 @@ export async function POST(
       .from('club_messages')
       .insert({
         club_id: clubId,
-        user_id: user.id,
+        user_id: userData.id,
         content,
         type,
         reply_to,
@@ -104,7 +115,7 @@ export async function POST(
 
     // Award XP for participation
     await supabase.rpc('award_xp', {
-      user_id: user.id,
+      user_id: userData.id,
       points: 2,
       reason: 'Participated in club chat',
       category: 'social'
@@ -115,8 +126,7 @@ export async function POST(
       .from('club_members')
       .select('user_id')
       .eq('club_id', clubId)
-      .eq('status', 'active')
-      .neq('user_id', user.id);
+      .neq('user_id', userData.id);
 
     if (members && members.length > 0) {
       const notifications = members.map(member => ({
@@ -165,15 +175,26 @@ export async function GET(
     
     const clubId = params.id;
 
+    // Get the user's ID from the users table
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('auth_id', user.id)
+      .single();
+
+    if (userError || !userData) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
     // Check if user is a member of the club
     const { data: membership, error: memberError } = await supabase
       .from('club_members')
-      .select('role, status')
+      .select('role')
       .eq('club_id', clubId)
-      .eq('user_id', user.id)
+      .eq('user_id', userData.id)
       .single();
 
-    if (memberError || !membership || membership.status !== 'active') {
+    if (memberError || !membership) {
       return NextResponse.json({ error: 'Not a member of this club' }, { status: 403 });
     }
 

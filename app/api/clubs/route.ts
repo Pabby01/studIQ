@@ -33,6 +33,21 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const my_clubs = searchParams.get('my_clubs') === 'true';
 
+    // Get the user's ID from the users table if needed for my_clubs
+    let userData = null;
+    if (my_clubs) {
+      const { data: userResult, error: userError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('auth_id', user.id)
+        .single();
+
+      if (userError || !userResult) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      }
+      userData = userResult;
+    }
+
     let query = supabase
       .from('clubs')
       .select(`
@@ -49,8 +64,8 @@ export async function GET(request: NextRequest) {
       query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
     }
 
-    if (my_clubs) {
-      query = query.eq('club_members.user_id', user.id);
+    if (my_clubs && userData) {
+      query = query.eq('club_members.user_id', userData.id);
     }
 
     const { data: clubs, error } = await query.order('created_at', { ascending: false });

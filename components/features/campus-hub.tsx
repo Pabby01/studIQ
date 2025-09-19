@@ -58,6 +58,7 @@ import { DialogFooter } from '@/components/ui/dialog';
 
 import { subscribeToUserData, unsubscribe } from '@/lib/realtime-service';
 import { cacheGet, cacheSet, debounce, measurePerformance } from '@/lib/performance-optimizer';
+import { ClubSpace } from './club-space';
 
 interface Club {
   id: string;
@@ -67,6 +68,7 @@ interface Club {
   is_private: boolean;
   max_members: number;
   created_at: string;
+  created_by: string;
   created_by_user: {
     username: string;
     avatar_url: string;
@@ -294,6 +296,7 @@ export default function CampusHub() {
   const [isCreatingClub, setIsCreatingClub] = useState(false);
   const [isJoiningClub, setIsJoiningClub] = useState<string | null>(null);
   const [userClubs, setUserClubs] = useState<Club[]>([]);
+  const [selectedClub, setSelectedClub] = useState<Club | null>(null);
 
   // Fetch data functions with performance optimization
   const fetchClubs = useCallback(async () => {
@@ -530,6 +533,7 @@ export default function CampusHub() {
           max_members: 500,
         });
         fetchClubs();
+        fetchUserClubs(); // Update user clubs to reflect the new membership
       } else {
         toast.error(data.error || 'Failed to create club');
       }
@@ -538,6 +542,21 @@ export default function CampusHub() {
       toast.error('Failed to create club');
     }
   };
+
+  const fetchUserClubs = useCallback(async () => {
+    try {
+      const response = await fetch('/api/clubs?my_clubs=true');
+      const data = await response.json();
+      
+      if (response.ok) {
+        setUserClubs(data.clubs || []);
+      } else {
+        console.error('Failed to fetch user clubs:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching user clubs:', error);
+    }
+  }, []);
 
   const joinClub = async (clubId: string) => {
     try {
@@ -552,8 +571,16 @@ export default function CampusHub() {
       if (response.ok) {
         toast.success(data.message);
         fetchClubs();
+        fetchUserClubs(); // Refresh user clubs after joining
       } else {
-        toast.error(data.error || 'Failed to join club');
+        // Handle "Already a member" case gracefully
+        if (data.error === 'Already a member of this club') {
+          toast.info('You are already a member of this club');
+          // Refresh user clubs to ensure UI state is correct
+          fetchUserClubs();
+        } else {
+          toast.error(data.error || 'Failed to join club');
+        }
       }
     } catch (error) {
       console.error('Error joining club:', error);
@@ -591,9 +618,10 @@ export default function CampusHub() {
         fetchUserReputation(),
         fetchNotifications(),
         fetchLeaderboard(),
+        fetchUserClubs(),
       ]).finally(() => setLoading(false));
     }
-  }, [user, fetchClubs, fetchEvents, fetchCollaborationTools, fetchUserReputation, fetchNotifications, fetchLeaderboard]);
+  }, [user, fetchClubs, fetchEvents, fetchCollaborationTools, fetchUserReputation, fetchNotifications, fetchLeaderboard, fetchUserClubs]);
 
   // Real-time updates for notifications using optimized service
   useEffect(() => {
@@ -618,6 +646,33 @@ export default function CampusHub() {
     }
   }, [fetchNotifications, user]);
 
+  // Real-time updates for club membership changes
+  useEffect(() => {
+    if (user) {
+      const channel = supabase
+        .channel('club-membership-updates')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'club_members',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('Club membership update received:', payload);
+            // Refresh user clubs when membership changes
+            fetchUserClubs();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [user, fetchUserClubs, supabase]);
+
   // Close notifications when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -635,6 +690,16 @@ export default function CampusHub() {
       <div className="flex items-center justify-center h-64">
         <p className="text-muted-foreground">Please sign in to access Campus Hub</p>
       </div>
+    );
+  }
+
+  // Show ClubSpace when a club is selected
+  if (selectedClub) {
+    return (
+      <ClubSpace 
+        club={selectedClub} 
+        onBack={() => setSelectedClub(null)}
+      />
     );
   }
 
@@ -1246,10 +1311,10 @@ export default function CampusHub() {
                           size="sm" 
                           variant="outline" 
                           className="flex-1 border-rose-200 text-rose-700 hover:bg-rose-50 hover:border-rose-300"
-                          onClick={() => handleJoinClub(club.id)}
+                          onClick={() => setSelectedClub(club)}
                         >
-                          <MessageCircle className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
-                          <span className="text-xs md:text-sm">Chat</span>
+                          <Eye className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+                          <span className="text-xs md:text-sm">View Club</span>
                         </Button>
                         <Button 
                           size="sm" 

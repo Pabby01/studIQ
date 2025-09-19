@@ -173,8 +173,7 @@ export async function POST(
         user:users!club_members_user_id_fkey(
           id,
           username,
-          avatar_url,
-          campus_xp
+          avatar_url
         )
       `)
       .single();
@@ -259,8 +258,7 @@ export async function PUT(
         user:users!club_members_user_id_fkey(
           id,
           username,
-          avatar_url,
-          campus_xp
+          avatar_url
         )
       `)
       .single();
