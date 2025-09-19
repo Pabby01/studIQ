@@ -60,7 +60,22 @@ CREATE INDEX IF NOT EXISTS idx_club_messages_reply_to ON public.club_messages(re
 CREATE INDEX IF NOT EXISTS idx_club_messages_type ON public.club_messages(type);
 
 -- =======================
--- 3) CREATE MEMBER COUNT SYNCHRONIZATION FUNCTIONS
+-- 3) UPDATE CLUBS TABLE STRUCTURE
+-- =======================
+
+-- Add member_count column to clubs table if it doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'clubs' AND column_name = 'member_count') THEN
+    ALTER TABLE public.clubs ADD COLUMN member_count integer DEFAULT 0;
+  END IF;
+END $$;
+
+-- Add index for member_count
+CREATE INDEX IF NOT EXISTS idx_clubs_member_count ON public.clubs(member_count);
+
+-- =======================
+-- 4) CREATE MEMBER COUNT SYNCHRONIZATION FUNCTIONS
 -- =======================
 
 -- Function to update club member count
@@ -98,7 +113,7 @@ CREATE TRIGGER trigger_update_club_member_count
   EXECUTE FUNCTION update_club_member_count();
 
 -- =======================
--- 4) ENABLE RLS AND CREATE POLICIES
+-- 5) ENABLE RLS AND CREATE POLICIES
 -- =======================
 
 -- Enable RLS on message_reactions
@@ -124,12 +139,12 @@ CREATE POLICY "message_reactions_insert_own" ON public.message_reactions
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.users u
-      WHERE u.id = user_id AND u.auth_id = auth.uid()
+      WHERE u.id = message_reactions.user_id AND u.auth_id = auth.uid()
     ) AND
     EXISTS (
       SELECT 1 FROM public.club_messages cm
       JOIN public.club_members cmem ON cmem.club_id = cm.club_id
-      WHERE cm.id = message_id AND cmem.user_id = user_id
+      WHERE cm.id = message_reactions.message_id AND cmem.user_id = message_reactions.user_id
     )
   );
 
@@ -139,12 +154,12 @@ CREATE POLICY "message_reactions_delete_own" ON public.message_reactions
   USING (
     EXISTS (
       SELECT 1 FROM public.users u
-      WHERE u.id = user_id AND u.auth_id = auth.uid()
+      WHERE u.id = message_reactions.user_id AND u.auth_id = auth.uid()
     )
   );
 
 -- =======================
--- 5) UPDATE EXISTING CLUB POLICIES
+-- 6) UPDATE EXISTING CLUB POLICIES
 -- =======================
 
 -- Update club_messages policies to handle new columns
@@ -166,11 +181,11 @@ CREATE POLICY "club_messages_insert_members" ON public.club_messages
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.users u
-      WHERE u.id = user_id AND u.auth_id = auth.uid()
+      WHERE u.id = club_messages.user_id AND u.auth_id = auth.uid()
     ) AND
     EXISTS (
       SELECT 1 FROM public.club_members cm
-      WHERE cm.club_id = club_id AND cm.user_id = user_id
+      WHERE cm.club_id = club_messages.club_id AND cm.user_id = club_messages.user_id
     )
   );
 
@@ -180,7 +195,7 @@ CREATE POLICY "club_messages_update_own" ON public.club_messages
   USING (
     EXISTS (
       SELECT 1 FROM public.users u
-      WHERE u.id = user_id AND u.auth_id = auth.uid()
+      WHERE u.id = club_messages.user_id AND u.auth_id = auth.uid()
     )
   );
 
@@ -190,7 +205,7 @@ CREATE POLICY "club_messages_delete_own_or_admin" ON public.club_messages
   USING (
     EXISTS (
       SELECT 1 FROM public.users u
-      WHERE u.id = user_id AND u.auth_id = auth.uid()
+      WHERE u.id = club_messages.user_id AND u.auth_id = auth.uid()
     ) OR
     EXISTS (
       SELECT 1 FROM public.club_members cm
@@ -202,7 +217,7 @@ CREATE POLICY "club_messages_delete_own_or_admin" ON public.club_messages
   );
 
 -- =======================
--- 6) INITIALIZE MEMBER COUNTS FOR EXISTING CLUBS
+-- 7) INITIALIZE MEMBER COUNTS FOR EXISTING CLUBS
 -- =======================
 
 -- Update member counts for all existing clubs
@@ -214,7 +229,7 @@ SET member_count = (
 );
 
 -- =======================
--- 7) CREATE REAL-TIME FUNCTIONS FOR CLUB UPDATES
+-- 8) CREATE REAL-TIME FUNCTIONS FOR CLUB UPDATES
 -- =======================
 
 -- Function to notify club updates
@@ -259,7 +274,7 @@ CREATE TRIGGER trigger_notify_message_reactions_update
   EXECUTE FUNCTION notify_club_update();
 
 -- =======================
--- 8) CREATE HELPER FUNCTIONS
+-- 9) CREATE HELPER FUNCTIONS
 -- =======================
 
 -- Function to get club member count
@@ -289,7 +304,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- =======================
--- 9) COMPLETION MESSAGE
+-- 10) COMPLETION MESSAGE
 -- =======================
 
 DO $$
