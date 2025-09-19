@@ -31,6 +31,8 @@ import { toast } from 'sonner';
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import Image from 'next/image';
 import { errorHandler, handleAsyncOperation, handleApiCall } from '@/lib/error-handler';
+import { XPDisplay } from '@/components/xp/xp-display';
+import { showXPToast } from '@/components/xp/xp-toast';
 
 const WALLET_DATA = {
   balance: 125.50,
@@ -509,6 +511,27 @@ export function FinanceHub() {
           
           toast.success(`Transaction completed! Signature: ${signature.slice(0, 8)}...`);
           
+          // Award XP for successful transaction
+          try {
+            const token = await getAccessToken();
+            const xpAmount = amountNum >= 10 ? 15 : 10;
+            await fetch('/api/xp', {
+              method: 'POST',
+              headers: {
+                'content-type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {})
+              },
+              body: JSON.stringify({
+                action: 'transaction_complete',
+                hubType: 'finance',
+                metadata: { amount: amountNum, type: 'send' }
+              })
+            });
+            showXPToast({ action: 'transaction_complete', xpAmount, hubType: 'finance' });
+          } catch (xpError) {
+            console.warn('Failed to award XP for transaction:', xpError);
+          }
+          
           // Update local state
           const newTransaction = {
             id: signature,
@@ -552,7 +575,28 @@ export function FinanceHub() {
         
         const json = await res.json();
         setTransactions((prev) => [json.item, ...prev]);
-        toast.success('Transaction completed!');
+        
+        // Award XP for successful database transaction
+        try {
+          const xpAmount = amountNum >= 10 ? 15 : 10;
+          await fetch('/api/xp', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+              action: 'transaction_complete',
+              hubType: 'finance',
+              metadata: { amount: amountNum, type: 'send' }
+            })
+          });
+          showXPToast({ action: 'transaction_complete', xpAmount, hubType: 'finance' });
+        } catch (xpError) {
+          console.warn('Failed to award XP for transaction:', xpError);
+        }
+        
+        toast.success('Transaction completed! +' + (amountNum >= 10 ? 15 : 10) + ' Finance XP earned!');
       }
       
       // Reset form
@@ -885,6 +929,17 @@ export function FinanceHub() {
 
           {/* Sidebar */}
           <div className="space-y-6">
+            {/* XP Display */}
+            <XPDisplay 
+              userId={user?.id} 
+              showDetails={true} 
+              onXPUpdate={(newXP: number, change: number) => {
+                if (change > 0) {
+                  showXPToast({ action: 'transaction_complete', xpAmount: change, hubType: 'finance' });
+                }
+              }}
+            />
+
             {/* AI Financial Advisor */}
             <Card className="p-6 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200">
               <div className="flex items-center space-x-3 mb-4">

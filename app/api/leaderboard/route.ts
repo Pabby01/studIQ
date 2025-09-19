@@ -14,89 +14,66 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '50');
-    const category = searchParams.get('category') || 'all';
+    const hubType = searchParams.get('hub') || 'total'; // 'total', 'campus', 'learning', 'finance', 'club'
+    const clubId = searchParams.get('club_id');
 
-    let query = supabase
-      .from('user_reputation')
-      .select(`
-        user_id,
-        total_xp,
-        level,
-        profiles:user_id (
-          username,
-          avatar_url
-        )
-      `)
-      .order('total_xp', { ascending: false })
-      .limit(Math.min(limit, 100));
-
-    // Filter by category if specified
-    if (category !== 'all') {
-      // Get users with XP in specific category
-      const { data: categoryUsers, error: categoryError } = await supabase
-        .from('transactions')
-        .select('user_id')
-        .eq('category', category)
-        .order('created_at', { ascending: false });
-
-      if (categoryError) {
-        console.error('Category filter error:', categoryError);
-        return NextResponse.json({ error: 'Failed to filter by category' }, { status: 500 });
-      }
-
-      const userIds = Array.from(new Set(categoryUsers?.map(t => t.user_id) || []));
-      if (userIds.length > 0) {
-        query = query.in('user_id', userIds);
-      }
-    }
-
-    const { data: leaderboard, error: leaderError } = await query;
+    // Use the new unified leaderboard function
+    const { data: leaderboardData, error: leaderError } = await supabase
+      .rpc('get_leaderboard', {
+        p_hub_type: hubType,
+        p_limit: Math.min(limit, 100),
+        p_club_id: clubId || null
+      });
 
     if (leaderError) {
       console.error('Leaderboard fetch error:', leaderError);
       return NextResponse.json({ error: 'Failed to fetch leaderboard' }, { status: 500 });
     }
 
-    // Get current user's position
-    const { data: allUsers, error: allUsersError } = await supabase
-      .from('user_reputation')
-      .select('user_id, total_xp')
-      .order('total_xp', { ascending: false });
+    // Get current user's XP data
+    const { data: currentUserXp, error: userXpError } = await supabase
+      .from('user_xp')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
 
-    if (allUsersError) {
-      console.error('All users fetch error:', allUsersError);
-      return NextResponse.json({ error: 'Failed to fetch user position' }, { status: 500 });
+    if (userXpError && userXpError.code !== 'PGRST116') {
+      console.error('User XP fetch error:', userXpError);
     }
 
-    const currentUserPosition = allUsers?.findIndex(u => u.user_id === user.id) + 1 || null;
-    const currentUserData = leaderboard?.find(u => u.user_id === user.id);
+    // Get current user's position in the leaderboard
+    const currentUserPosition = leaderboardData?.findIndex((entry: any) => entry.user_id === user.id) + 1 || null;
 
     // Format leaderboard data
-    const formattedLeaderboard = leaderboard?.map((entry, index) => ({
-      position: index + 1,
+    const formattedLeaderboard = leaderboardData?.map((entry: any, index: number) => ({
+      position: entry.rank_position,
       userId: entry.user_id,
-      totalXp: entry.total_xp,
-      level: entry.level,
-      profile: entry.profiles ? {
-        username: Array.isArray(entry.profiles) ? entry.profiles[0]?.username : (entry.profiles as any).username,
-        avatarUrl: Array.isArray(entry.profiles) ? entry.profiles[0]?.avatar_url : (entry.profiles as any).avatar_url
-      } : null,
+      username: entry.username,
+      avatarUrl: entry.avatar_url,
+      xpAmount: entry.xp_amount,
       isCurrentUser: entry.user_id === user.id
     })) || [];
+
+    // Calculate user's level based on total XP
+    const userLevel = currentUserXp ? Math.floor(currentUserXp.total_xp / 100) + 1 : 1;
 
     return NextResponse.json({
       leaderboard: formattedLeaderboard,
       currentUser: {
         position: currentUserPosition,
-        data: currentUserData ? {
-          userId: currentUserData.user_id,
-          totalXp: currentUserData.total_xp,
-          level: currentUserData.level,
-          profile: currentUserData.profiles
+        xp: currentUserXp ? {
+          total: currentUserXp.total_xp,
+          campus: currentUserXp.campus_xp,
+          learning: currentUserXp.learning_xp,
+          finance: currentUserXp.finance_xp,
+          club: currentUserXp.club_xp,
+          level: userLevel,
+          dailyStreak: currentUserXp.daily_login_streak
         } : null
       },
-      totalUsers: allUsers?.length || 0,
-      category
+      totalUsers: leaderboardData?.length || 0,
+      hubType,
+      clubId
     });
   } catch (error) {
     console.error('Leaderboard error:', error);

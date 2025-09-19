@@ -59,6 +59,8 @@ import { DialogFooter } from '@/components/ui/dialog';
 import { subscribeToUserData, unsubscribe } from '@/lib/realtime-service';
 import { cacheGet, cacheSet, debounce, measurePerformance } from '@/lib/performance-optimizer';
 import { ClubSpace } from './club-space';
+import { XPDisplay } from '@/components/xp/xp-display';
+import { BadgeSystem } from '@/components/xp/badge-system';
 
 interface Club {
   id: string;
@@ -75,6 +77,8 @@ interface Club {
   };
   member_count: number;
   is_member: boolean;
+  message_count?: number;
+  resource_count?: number;
 }
 
 interface Event {
@@ -119,6 +123,8 @@ interface UserReputation {
   xp_to_next_level: number;
   rank: number;
   weekly_xp: number;
+  badges?: string[];
+  daily_streak?: number;
 }
 
 interface Notification {
@@ -1388,71 +1394,59 @@ export default function CampusHub() {
         {/* Reputation Tab */}
         <TabsContent value="reputation" className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Campus Reputation & Rewards</h2>
+            <h2 className="text-xl font-semibold">Campus XP & Achievements</h2>
+            <Button 
+              variant="outline" 
+              onClick={() => window.open('/leaderboard', '_blank')}
+              className="flex items-center space-x-2"
+            >
+              <Trophy className="h-4 w-4" />
+              <span>View Full Leaderboard</span>
+            </Button>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Trophy className="h-5 w-5 text-yellow-500" />
-                  <span>Campus XP</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold mb-2">{userReputation?.total_xp || 0}</div>
-                <p className="text-sm text-muted-foreground">Total points earned</p>
-                <div className="mt-3">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>Level {userReputation?.level || 1}</span>
-                    <span>{userReputation?.xp_to_next_level || 0} XP to next level</span>
-                  </div>
-                  <Progress 
-                    value={userReputation ? ((userReputation.total_xp % 1000) / 1000) * 100 : 0} 
-                    className="h-2"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* XP Display */}
+            <div className="space-y-6">
+              <XPDisplay 
+                userId={user?.id} 
+                showDetails={true} 
+                onXPUpdate={(newXP: number, change: number) => {
+                  if (change > 0) {
+                    toast(`XP Earned! 🎉 You gained ${change} XP!`);
+                  }
+                }}
+              />
+            </div>
             
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Target className="h-5 w-5 text-purple-500" />
-                  <span>Campus Rank</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold mb-2">#{userReputation?.rank || 'N/A'}</div>
-                <p className="text-sm text-muted-foreground">Out of {leaderboard.total_users || 0} students</p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Zap className="h-5 w-5 text-blue-500" />
-                  <span>Weekly Activity</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold mb-2">{userReputation?.weekly_xp || 0}</div>
-                <p className="text-sm text-muted-foreground">XP earned this week</p>
-              </CardContent>
-            </Card>
+            {/* Badge System */}
+            <div className="space-y-6">
+              <BadgeSystem 
+                totalXP={userReputation?.total_xp || 0}
+                userBadges={userReputation?.badges || []}
+                actionCounts={{
+                  'club_message_post': clubs.reduce((acc, club) => acc + (club.message_count || 0), 0),
+                  'event_rsvp': events.filter(e => e.is_attending).length,
+                  'club_resource_upload': clubs.reduce((acc, club) => acc + (club.resource_count || 0), 0)
+                }}
+                dailyStreak={userReputation?.daily_streak || 0}
+                showProgress={true}
+                compact={false}
+              />
+            </div>
           </div>
 
-          {/* Leaderboard */}
+          {/* Quick Leaderboard Preview */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Activity className="h-5 w-5" />
-                <span>Campus Leaderboard</span>
+                <span>Campus Leaderboard Preview</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {leaderboard.entries?.map((entry: LeaderboardEntry, index: number) => (
+                {leaderboard.entries?.slice(0, 5).map((entry: LeaderboardEntry, index: number) => (
                   <div
                     key={entry.user_id}
                     className={`flex items-center justify-between p-3 rounded-lg ${
@@ -1480,7 +1474,7 @@ export default function CampusHub() {
                   </div>
                 ))}
                 
-                {leaderboard.current_user && leaderboard.current_user.rank > 10 && (
+                {leaderboard.current_user && leaderboard.current_user.rank > 5 && (
                   <>
                     <Separator />
                     <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 border border-blue-200">
@@ -1500,6 +1494,17 @@ export default function CampusHub() {
                     </div>
                   </>
                 )}
+              </div>
+              
+              <div className="mt-4 pt-4 border-t">
+                <Button 
+                  variant="ghost" 
+                  className="w-full" 
+                  onClick={() => window.open('/leaderboard', '_blank')}
+                >
+                  View Complete Leaderboard
+                  <ChevronRight className="h-4 w-4 ml-2" />
+                </Button>
               </div>
             </CardContent>
           </Card>

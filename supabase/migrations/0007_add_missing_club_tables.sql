@@ -82,6 +82,7 @@ ALTER TABLE public.club_resources ENABLE ROW LEVEL SECURITY;
 -- =======================
 
 -- Club events policies
+DROP POLICY IF EXISTS "club_events_select_members" ON public.club_events;
 CREATE POLICY "club_events_select_members" ON public.club_events
   FOR SELECT TO authenticated
   USING (
@@ -93,6 +94,7 @@ CREATE POLICY "club_events_select_members" ON public.club_events
     )
   );
 
+DROP POLICY IF EXISTS "club_events_insert_members" ON public.club_events;
 CREATE POLICY "club_events_insert_members" ON public.club_events
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -105,6 +107,7 @@ CREATE POLICY "club_events_insert_members" ON public.club_events
     )
   );
 
+DROP POLICY IF EXISTS "club_events_update_creator_or_admin" ON public.club_events;
 CREATE POLICY "club_events_update_creator_or_admin" ON public.club_events
   FOR UPDATE TO authenticated
   USING (
@@ -122,6 +125,7 @@ CREATE POLICY "club_events_update_creator_or_admin" ON public.club_events
   );
 
 -- Club event members policies
+DROP POLICY IF EXISTS "club_event_members_select_all" ON public.club_event_members;
 CREATE POLICY "club_event_members_select_all" ON public.club_event_members
   FOR SELECT TO authenticated
   USING (
@@ -134,6 +138,7 @@ CREATE POLICY "club_event_members_select_all" ON public.club_event_members
     )
   );
 
+DROP POLICY IF EXISTS "club_event_members_insert_own" ON public.club_event_members;
 CREATE POLICY "club_event_members_insert_own" ON public.club_event_members
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -149,6 +154,7 @@ CREATE POLICY "club_event_members_insert_own" ON public.club_event_members
   );
 
 -- Club resources policies
+DROP POLICY IF EXISTS "club_resources_select_members" ON public.club_resources;
 CREATE POLICY "club_resources_select_members" ON public.club_resources
   FOR SELECT TO authenticated
   USING (
@@ -160,6 +166,7 @@ CREATE POLICY "club_resources_select_members" ON public.club_resources
     )
   );
 
+DROP POLICY IF EXISTS "club_resources_insert_members" ON public.club_resources;
 CREATE POLICY "club_resources_insert_members" ON public.club_resources
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -171,6 +178,7 @@ CREATE POLICY "club_resources_insert_members" ON public.club_resources
     )
   );
 
+DROP POLICY IF EXISTS "club_resources_update_creator_or_admin" ON public.club_resources;
 CREATE POLICY "club_resources_update_creator_or_admin" ON public.club_resources
   FOR UPDATE TO authenticated
   USING (

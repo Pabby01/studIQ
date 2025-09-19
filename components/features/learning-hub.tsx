@@ -27,6 +27,8 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { errorHandler, handleAsyncOperation, handleApiCall } from '@/lib/error-handler';
 import { subscribeToUserData, unsubscribe } from '@/lib/realtime-service';
 import { cacheGet, cacheSet, debounce, measurePerformance } from '@/lib/performance-optimizer';
+import { XPDisplay } from '@/components/xp/xp-display';
+import { showXPToast } from '@/components/xp/xp-toast';
 
 interface Material {
   id: string;
@@ -365,9 +367,28 @@ export function LearningHub() {
         }
       }
 
+      // Award XP for uploading material
+      try {
+        const xpToken = await getAccessToken();
+        await fetch('/api/xp', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            ...(xpToken ? { Authorization: `Bearer ${xpToken}` } : {})
+          },
+          body: JSON.stringify({
+            action: 'study_material_upload',
+            hubType: 'learning'
+          })
+        });
+        showXPToast({ action: 'course_material_upload', xpAmount: 25, hubType: 'learning' });
+      } catch (xpError) {
+        console.warn('Failed to award XP for material upload:', xpError);
+      }
+
       toast({
         title: 'Success',
-        description: 'Material uploaded successfully!'
+        description: 'Material uploaded successfully! +25 Learning XP earned!'
       });
 
       setTitle('');
@@ -443,6 +464,28 @@ export function LearningHub() {
         },
         body: JSON.stringify({ progress: score })
       });
+
+      // Award XP for quiz completion based on score
+      if (score >= 60) {
+        try {
+          const xpAmount = score >= 90 ? 50 : score >= 80 ? 35 : 20;
+          await fetch('/api/xp', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+              action: 'quiz_completion',
+              hubType: 'learning',
+              metadata: { score, materialId: activeMaterial.id }
+            })
+          });
+          showXPToast({ action: 'quiz_complete', xpAmount, hubType: 'learning' });
+        } catch (xpError) {
+          console.warn('Failed to award XP for quiz completion:', xpError);
+        }
+      }
     } catch (e) {
       console.warn('Failed to update progress');
     }
@@ -643,6 +686,17 @@ export function LearningHub() {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* XP Display */}
+          <XPDisplay 
+            userId={user?.id} 
+            showDetails={true} 
+            onXPUpdate={(newXP: number, change: number) => {
+              if (change > 0) {
+                showXPToast({ action: 'course_material_upload', xpAmount: change, hubType: 'learning' });
+              }
+            }}
+          />
+
           {/* Study Stats */}
           <Card className="p-6">
             <h3 className="font-semibold mb-4">Study Statistics</h3>
