@@ -6,7 +6,7 @@ import { z } from 'zod';
 const createEventSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().optional(),
-  event_date: z.string().refine((date) => !isNaN(Date.parse(date)), {
+  date: z.string().refine((date) => !isNaN(Date.parse(date)), {
     message: "Invalid date format",
   }),
   location: z.string().optional(),
@@ -20,7 +20,7 @@ const createEventSchema = z.object({
 const updateEventSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().optional(),
-  event_date: z.string().refine((date) => !isNaN(Date.parse(date)), {
+  date: z.string().refine((date) => !isNaN(Date.parse(date)), {
     message: "Invalid date format",
   }).optional(),
   location: z.string().optional(),
@@ -51,8 +51,8 @@ export async function GET(request: NextRequest) {
         *,
         created_by_user:users!events_created_by_fkey(username, avatar_url),
         club:clubs(name, id),
-        attendee_count:event_attendees(count),
-        is_attending:event_attendees!inner(user_id)
+        attendee_count:event_rsvps(count),
+        is_attending:event_rsvps!inner(user_id)
       `);
 
     if (club_id) {
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (upcoming) {
-      query = query.gte('event_date', new Date().toISOString());
+      query = query.gte('date', new Date().toISOString());
     }
 
     if (my_events) {
@@ -75,14 +75,14 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
 
-      query = query.eq('event_attendees.user_id', userData.id);
+      query = query.eq('event_rsvps.user_id', userData.id);
     }
 
     if (search) {
       query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
     }
 
-    const { data: events, error } = await query.order('event_date', { ascending: true });
+    const { data: events, error } = await query.order('date', { ascending: true });
 
     if (error) {
       console.error('Error fetching events:', error);
@@ -154,11 +154,11 @@ export async function POST(request: NextRequest) {
 
     // Automatically add creator as attendee
     const { error: attendeeError } = await supabase
-      .from('event_attendees')
+      .from('event_rsvps')
       .insert({
         event_id: event.id,
         user_id: userData.id,
-        status: 'confirmed',
+        status: 'going',
       });
 
     if (attendeeError) {

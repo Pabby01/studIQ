@@ -67,7 +67,7 @@ export async function POST(
     }));
 
     const { data: shares, error: shareError } = await supabase
-      .from('tool_shares')
+      .from('collaboration_tool_shares')
       .upsert(shareRecords, {
         onConflict: 'tool_id,user_id'
       })
@@ -140,7 +140,7 @@ export async function GET(
 
     // Get all shares for this tool
     const { data: shares, error: sharesError } = await supabase
-      .from('tool_shares')
+      .from('collaboration_tool_shares')
       .select(`
         *,
         profiles:user_id (
@@ -210,7 +210,7 @@ export async function DELETE(
 
     // Remove share
     const { error: deleteError } = await supabase
-      .from('tool_shares')
+      .from('collaboration_tool_shares')
       .delete()
       .eq('tool_id', toolId)
       .eq('user_id', userId);

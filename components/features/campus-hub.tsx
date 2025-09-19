@@ -639,13 +639,26 @@ export default function CampusHub() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto p-4 space-y-6">
       {/* Header */}
+      <div className="bg-gradient-to-r from-rose-600 to-orange-600 rounded-xl p-6 text-white">
+        <h1 className="text-2xl md:text-3xl font-bold mb-2">Campus Hub</h1>
+        <p className="text-rose-100">
+          Connect, collaborate, and grow with your campus community
+        </p>
+      </div>
+
       <div className="flex flex-col space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Campus Hub</h1>
-            <p className="text-muted-foreground">Connect, collaborate, and grow with your campus community</p>
+          <div className="flex items-center space-x-2 md:space-x-3">
+            <Badge variant="secondary" className="flex items-center space-x-1 bg-rose-100 text-rose-700 border-rose-200">
+              <Trophy className="h-3 w-3" />
+              <span>XP: {userReputation?.total_xp || 0}</span>
+            </Badge>
+            <Badge variant="outline" className="flex items-center space-x-1">
+              <Award className="h-3 w-3" />
+              <span>Level {userReputation?.level || 1}</span>
+            </Badge>
           </div>
           <div className="flex items-center space-x-3">
             {/* Notifications */}
@@ -720,17 +733,7 @@ export default function CampusHub() {
               )}
             </div>
 
-            {/* User Reputation */}
-            <div className="flex items-center space-x-2">
-              <Badge variant="secondary" className="flex items-center space-x-1">
-                <Trophy className="h-3 w-3" />
-                <span>XP: {userReputation?.total_xp || 0}</span>
-              </Badge>
-              <Badge variant="outline" className="flex items-center space-x-1">
-                <Award className="h-3 w-3" />
-                <span>Level {userReputation?.level || 1}</span>
-              </Badge>
-            </div>
+
           </div>
         </div>
 
@@ -746,7 +749,7 @@ export default function CampusHub() {
             />
           </div>
           <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
@@ -764,7 +767,7 @@ export default function CampusHub() {
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <div className="w-full overflow-x-auto">
-          <TabsList className="grid w-full grid-cols-5 min-w-[500px] md:min-w-0">
+          <TabsList className="grid w-full grid-cols-5 min-w-[400px] sm:min-w-[500px] md:min-w-0">
             <TabsTrigger value="services" className="flex items-center space-x-1 md:space-x-2 text-xs md:text-sm">
               <CreditCard className="h-3 w-3 md:h-4 md:w-4" />
               <span className="hidden sm:inline">Services</span>
