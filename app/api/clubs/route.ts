@@ -38,7 +38,6 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         created_by_user:users!clubs_created_by_fkey(username, avatar_url),
-        member_count:club_members(count),
         is_member:club_members!inner(user_id)
       `);
 
@@ -61,7 +60,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch clubs' }, { status: 500 });
     }
 
-    return NextResponse.json({ clubs });
+    // Add member count for each club
+    const clubsWithMemberCount = await Promise.all(
+      (clubs || []).map(async (club) => {
+        const { count: memberCount, error: countError } = await supabase
+          .from('club_members')
+          .select('*', { count: 'exact', head: true })
+          .eq('club_id', club.id);
+
+        return {
+          ...club,
+          member_count: countError ? 0 : (memberCount || 0)
+        };
+      })
+    );
+
+    return NextResponse.json({ clubs: clubsWithMemberCount });
   } catch (error) {
     console.error('Unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

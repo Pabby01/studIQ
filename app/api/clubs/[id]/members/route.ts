@@ -33,8 +33,7 @@ export async function GET(
         user:users!club_members_user_id_fkey(
           id,
           username,
-          avatar_url,
-          campus_xp
+          avatar_url
         )
       `)
       .eq('club_id', clubId)
@@ -45,7 +44,27 @@ export async function GET(
       return NextResponse.json({ error: 'Failed to fetch members' }, { status: 500 });
     }
 
-    return NextResponse.json({ members });
+    // Add user reputation data for each member
+    const membersWithReputation = await Promise.all(
+      (members || []).map(async (member) => {
+        const { data: reputation, error: repError } = await supabase
+          .from('user_reputation')
+          .select('total_xp, level')
+          .eq('user_id', member.user_id)
+          .single();
+
+        return {
+          ...member,
+          user: {
+            ...member.user,
+            total_xp: reputation?.total_xp || 0,
+            level: reputation?.level || 1
+          }
+        };
+      })
+    );
+
+    return NextResponse.json({ members: membersWithReputation });
   } catch (error) {
     console.error('Unexpected error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
