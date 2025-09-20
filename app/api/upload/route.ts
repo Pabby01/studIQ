@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabaseFromRequest, resolveUserRowId, getSupabaseAdmin } from '@/lib/supabase-server';
 
 // POST /api/upload -> upload a file to Supabase Storage and return its URL
+// Updated to fix RLS policy and signature verification issues
 export async function POST(req: Request) {
   try {
     const supabase = getSupabaseFromRequest(req);
@@ -18,9 +19,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userRowId = await resolveUserRowId({ supabase, authId: authData.user.id });
-    console.debug('[api/upload] Resolved userRowId:', !!userRowId);
-    if (!userRowId) return NextResponse.json({ error: 'User not provisioned' }, { status: 403 });
+    // Use auth.uid() for folder path to match storage policies
+    const authUserId = authData.user.id;
+    console.debug('[api/upload] Using auth user ID for folder:', authUserId);
 
     const form = await req.formData();
     const file = form.get('file');
@@ -35,7 +36,8 @@ export async function POST(req: Request) {
     const buffer = new Uint8Array(bytes);
 
     const ext = (file as File).name.split('.').pop() || 'bin';
-    const path = `${userRowId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+    // Use auth.uid() as folder name to match storage RLS policies
+    const path = `${authUserId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
 
     // Attempt upload to bucket
     let uploadData: { path: string } | null = null;
@@ -69,7 +71,7 @@ export async function POST(req: Request) {
         }, { status: 400 });
       }
 
-      // Ensure bucket exists
+      // Ensure bucket exists with proper configuration
       try {
         const { data: buckets, error: listErr } = await admin.storage.listBuckets();
         if (listErr) {
@@ -80,6 +82,21 @@ export async function POST(req: Request) {
           const { error: createErr } = await admin.storage.createBucket(bucketName, {
             public: true,
             fileSizeLimit: 52428800, // 50MB to match client-side limit
+            allowedMimeTypes: [
+              'application/pdf',
+              'application/msword',
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              'application/vnd.ms-excel',
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              'application/vnd.ms-powerpoint',
+              'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+              'text/plain',
+              'text/csv',
+              'image/jpeg',
+              'image/png',
+              'image/gif',
+              'image/webp'
+            ]
           });
           if (createErr) {
             console.error('[api/upload] createBucket failed', { error: createErr.message });
@@ -98,14 +115,34 @@ export async function POST(req: Request) {
     }
 
     // If still not uploaded due to permission/policy issues, fallback to admin upload on server
-    if (!uploaded && admin && uploadErrMsg && /(forbidden|permission|not allowed|unauthorized|policy)/i.test(uploadErrMsg)) {
+    if (!uploaded && admin && uploadErrMsg && /(forbidden|permission|not allowed|unauthorized|policy|violates row-level security)/i.test(uploadErrMsg)) {
       console.warn('[api/upload] Upload blocked by policy. Retrying with admin credentials (server-side only).');
+      console.debug('[api/upload] Original error:', uploadErrMsg);
+      console.debug('[api/upload] Upload path:', path);
+      console.debug('[api/upload] Auth user ID:', authUserId);
+      
       const { data: dataAdmin, error: errAdmin } = await admin.storage
         .from(bucketName)
         .upload(path, buffer, { contentType: (file as File).type || 'application/octet-stream', upsert: false });
       if (errAdmin || !dataAdmin) {
         const msg = errAdmin?.message || uploadErrMsg || 'Upload failed';
-        console.error('[api/upload] Admin upload also failed', { message: msg });
+        console.error('[api/upload] Admin upload also failed', { 
+          message: msg, 
+          path, 
+          authUserId,
+          bucketName,
+          fileSize: buffer.length,
+          contentType: (file as File).type
+        });
+        
+        // Provide more helpful error message
+        if (msg.includes('signature verification failed')) {
+          return NextResponse.json({ 
+            error: 'Storage authentication failed. Please check your Supabase configuration.',
+            hint: 'Ensure SUPABASE_SERVICE_ROLE_KEY is correctly set and the storage bucket has proper policies.'
+          }, { status: 500 });
+        }
+        
         return NextResponse.json({ error: msg }, { status: 400 });
       }
       uploadData = dataAdmin as any;

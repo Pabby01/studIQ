@@ -253,7 +253,9 @@ const LeaderboardPage: React.FC = () => {
                     <Avatar className="h-16 w-16">
                       <AvatarImage src={leaderboardData.currentUser.avatar_url} />
                       <AvatarFallback>
-                        {leaderboardData.currentUser.username.charAt(0).toUpperCase()}
+                        {leaderboardData.currentUser.username?.charAt(0)?.toUpperCase() || 
+                         leaderboardData.currentUser.full_name?.charAt(0)?.toUpperCase() || 
+                         'U'}
                       </AvatarFallback>
                     </Avatar>
                     <div>
@@ -418,7 +420,9 @@ const LeaderboardList: React.FC<{ entries: LeaderboardEntry[] }> = ({ entries })
                 <Avatar className="h-12 w-12">
                   <AvatarImage src={entry.avatar_url} />
                   <AvatarFallback>
-                    {entry.username.charAt(0).toUpperCase()}
+                    {entry.username?.charAt(0)?.toUpperCase() || 
+                     entry.full_name?.charAt(0)?.toUpperCase() || 
+                     'U'}
                   </AvatarFallback>
                 </Avatar>
                 
