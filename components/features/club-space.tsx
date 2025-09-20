@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -39,6 +39,7 @@ import {
   TrendingUp,
   Clock,
   MapPin,
+  Globe,
   Heart,
   Share2,
   Bookmark,
@@ -108,11 +109,18 @@ interface ClubEvent {
   title: string;
   description: string;
   event_date: string;
+  start_time: string;
+  end_time: string;
   location: string;
   max_attendees: number;
   is_virtual: boolean;
+  virtual_link?: string;
+  event_type?: 'hackathon' | 'workshop' | 'career_fair' | 'study_session' | 'social';
   club_id: string;
   created_by: string;
+  rsvp_count?: number;
+  requires_rsvp?: boolean;
+  user_rsvp_status?: 'going' | 'maybe' | 'not_going' | null;
   attendee_count: number;
   is_attending: boolean;
 }
@@ -163,15 +171,20 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
   const [showCreateEvent, setShowCreateEvent] = useState(false);
   const [showCreateResource, setShowCreateResource] = useState(false);
   const [showMemberProfile, setShowMemberProfile] = useState<ClubMember | null>(null);
+  const [showBannerUpload, setShowBannerUpload] = useState(false);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
   
   // Form states
   const [eventForm, setEventForm] = useState({
     title: '',
     description: '',
-    event_date: '',
+    event_type: 'social' as 'career_fair' | 'hackathon' | 'study_session' | 'social' | 'workshop',
     location: '',
+    virtual_link: '',
+    start_time: '',
+    end_time: '',
     max_attendees: 100,
-    is_virtual: false,
+    requires_rsvp: true,
   });
   
   const [resourceForm, setResourceForm] = useState({
@@ -180,12 +193,20 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
     resource_type: 'link' as 'link' | 'file' | 'note',
     resource_url: '',
     content: '',
-    category: 'general',
+    category: 'study-materials',
   });
+
+  // Add state for saved resources and loading states
+  const [savedResources, setSavedResources] = useState<Set<string>>(new Set());
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [resourcesLoading, setResourcesLoading] = useState(false);
 
   // Fetch club data
   const fetchClubData = useCallback(async () => {
     setLoading(true);
+    setMembersLoading(true);
+    setResourcesLoading(true);
+    
     try {
       // First, get the current user's table ID
       let currentUserId = null;
@@ -214,7 +235,8 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
         setRealTimeMemberCount(updatedClubData.member_count);
       }
 
-      // Fetch members
+      // Fetch members with loading state
+      setMembersLoading(true);
       const { data: membersData } = await supabase
         .from('club_members')
         .select(`
@@ -235,6 +257,7 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
           setUserRole(currentUserMember.role);
         }
       }
+      setMembersLoading(false);
 
       // Fetch events
       const { data: eventsData } = await supabase
@@ -247,7 +270,8 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
         setEvents(eventsData);
       }
 
-      // Fetch resources
+      // Fetch resources with loading state
+      setResourcesLoading(true);
       const { data: resourcesData } = await supabase
         .from('club_resources')
         .select(`
@@ -260,13 +284,94 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
       if (resourcesData) {
         setResources(resourcesData);
       }
+      setResourcesLoading(false);
+
+      // Fetch saved resources for current user
+      if (currentUserId) {
+        const { data: savedResourcesData } = await supabase
+          .from('saved_resources')
+          .select('resource_id')
+          .eq('user_id', currentUserId)
+          .eq('club_id', club.id);
+
+        if (savedResourcesData) {
+          setSavedResources(new Set(savedResourcesData.map(sr => sr.resource_id)));
+        }
+      }
     } catch (error) {
       console.error('Error fetching club data:', error);
       toast.error('Failed to load club data');
     } finally {
       setLoading(false);
+      setMembersLoading(false);
+      setResourcesLoading(false);
     }
   }, [club.id, user?.id, supabase]);
+
+  // Add save resource functionality
+  const saveResource = async (resourceId: string) => {
+    try {
+      const { error } = await supabase
+        .from('saved_resources')
+        .insert({
+          user_id: currentUserId,
+          resource_id: resourceId,
+          club_id: club.id
+        });
+
+      if (error) throw error;
+
+      setSavedResources(prev => new Set([...Array.from(prev), resourceId]));
+      toast.success('Resource saved!');
+    } catch (error) {
+      console.error('Error saving resource:', error);
+      toast.error('Failed to save resource');
+    }
+  };
+
+  // Add unsave resource functionality
+  const unsaveResource = async (resourceId: string) => {
+    try {
+      const { error } = await supabase
+        .from('saved_resources')
+        .delete()
+        .eq('user_id', currentUserId)
+        .eq('resource_id', resourceId);
+
+      if (error) throw error;
+
+      setSavedResources(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(resourceId);
+        return newSet;
+      });
+      toast.success('Resource unsaved');
+    } catch (error) {
+      console.error('Error unsaving resource:', error);
+      toast.error('Failed to unsave resource');
+    }
+  };
+
+  // Add share resource functionality
+  const shareResource = async (resource: ClubResource) => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: resource.title,
+          text: resource.description,
+          url: resource.resource_url || window.location.href
+        });
+      } else {
+        // Fallback: copy to clipboard
+        const shareText = `${resource.title}\n${resource.description}\n${resource.resource_url || window.location.href}`;
+        await navigator.clipboard.writeText(shareText);
+        toast.success('Resource link copied to clipboard!');
+      }
+    } catch (error) {
+      console.error('Error sharing resource:', error);
+      toast.error('Failed to share resource');
+    }
+  };
 
   useEffect(() => {
     fetchClubData();
@@ -333,7 +438,7 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
   const createEvent = async () => {
     try {
       const { data, error } = await supabase
-        .from('club_events')
+        .from('events')
         .insert([{
           ...eventForm,
           club_id: club.id,
@@ -349,10 +454,13 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
       setEventForm({
         title: '',
         description: '',
-        event_date: '',
+        event_type: 'social' as 'career_fair' | 'hackathon' | 'study_session' | 'social' | 'workshop',
         location: '',
+        virtual_link: '',
+        start_time: '',
+        end_time: '',
         max_attendees: 100,
-        is_virtual: false,
+        requires_rsvp: true,
       });
       fetchClubData();
     } catch (error) {
@@ -384,7 +492,7 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
         resource_type: 'link',
         resource_url: '',
         content: '',
-        category: 'general',
+        category: 'study-materials',
       });
       fetchClubData();
     } catch (error) {
@@ -394,22 +502,60 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
   };
 
   // RSVP to event
-  const rsvpEvent = async (eventId: string) => {
+  const rsvpEvent = async (eventId: string, status: 'going' | 'maybe' | 'not_going' = 'going') => {
     try {
       const { error } = await supabase
-        .from('club_event_members')
-        .insert([{
+        .from('event_rsvps')
+        .upsert([{
           event_id: eventId,
           user_id: currentUserId,
-        }]);
+          status: status,
+        }], {
+          onConflict: 'event_id,user_id'
+        });
 
       if (error) throw error;
 
-      toast.success('RSVP confirmed!');
+      toast.success(`RSVP updated: ${status === 'going' ? 'Going' : status === 'maybe' ? 'Maybe' : 'Not Going'}!`);
       fetchClubData();
     } catch (error) {
       console.error('Error RSVPing to event:', error);
-      toast.error('Failed to RSVP');
+      toast.error('Failed to update RSVP');
+    }
+  };
+
+  // Upload banner image (admin only)
+  const uploadBanner = async () => {
+    if (!bannerFile || userRole !== 'admin') return;
+
+    try {
+      const fileExt = bannerFile.name.split('.').pop();
+      const fileName = `${club.id}-banner-${Date.now()}.${fileExt}`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('club-banners')
+        .upload(fileName, bannerFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('club-banners')
+        .getPublicUrl(fileName);
+
+      const { error: updateError } = await supabase
+        .from('clubs')
+        .update({ banner_image: publicUrl })
+        .eq('id', club.id);
+
+      if (updateError) throw updateError;
+
+      toast.success('Banner updated successfully!');
+      setShowBannerUpload(false);
+      setBannerFile(null);
+      fetchClubData();
+    } catch (error) {
+      console.error('Error uploading banner:', error);
+      toast.error('Failed to update banner');
     }
   };
 
@@ -476,14 +622,35 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
       </div>
 
       {/* Club Banner */}
-      {club.banner_url && (
-        <div className="relative h-48 rounded-lg overflow-hidden">
+      {club.banner_url ? (
+        <div className="relative h-48 rounded-lg overflow-hidden group">
           <img 
             src={club.banner_url} 
             alt={club.name}
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+          {userRole === 'admin' && (
+            <Button
+              onClick={() => setShowBannerUpload(true)}
+              className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 backdrop-blur-sm hover:bg-white/30"
+              size="sm"
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Banner
+            </Button>
+          )}
+        </div>
+      ) : userRole === 'admin' && (
+        <div className="h-48 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
+          <Button
+            onClick={() => setShowBannerUpload(true)}
+            variant="outline"
+            className="flex items-center space-x-2"
+          >
+            <Upload className="h-4 w-4" />
+            <span>Add Club Banner</span>
+          </Button>
         </div>
       )}
 
@@ -608,8 +775,14 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {members.map((member) => (
+          {membersLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
+              <span className="ml-2 text-gray-600">Loading members...</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {members.map((member) => (
               <Card key={member.id} className="p-4 hover:shadow-md transition-shadow">
                 <div className="flex items-center space-x-3">
                   <div className="relative">
@@ -658,7 +831,8 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
                 </div>
               </Card>
             ))}
-          </div>
+            </div>
+          )}
         </TabsContent>
 
         {/* Events Tab */}
@@ -675,65 +849,119 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Create New Event</DialogTitle>
-                    <DialogDescription>
+                    <DialogTitle className="text-xl font-bold text-gray-800">Create New Event</DialogTitle>
+                    <DialogDescription className="text-gray-600">
                       Organize an event for your club members
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
                     <div>
-                      <Label htmlFor="event-title">Event Title</Label>
+                      <Label htmlFor="event-title" className="text-sm font-medium text-gray-700">Event Title</Label>
                       <Input
                         id="event-title"
                         value={eventForm.title}
                         onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
                         placeholder="Enter event title"
+                        className="mt-1 border-gray-200 focus:border-rose-300 focus:ring-rose-200"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="event-description">Description</Label>
+                      <Label htmlFor="event-description" className="text-sm font-medium text-gray-700">Description</Label>
                       <Textarea
                         id="event-description"
                         value={eventForm.description}
                         onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
                         placeholder="Describe your event"
+                        className="mt-1 border-gray-200 focus:border-rose-300 focus:ring-rose-200"
+                        rows={3}
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="event-type" className="text-sm font-medium text-gray-700">Event Type</Label>
+                      <select
+                        id="event-type"
+                        value={eventForm.event_type}
+                        onChange={(e) => setEventForm({ ...eventForm, event_type: e.target.value as any })}
+                        className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-md focus:border-rose-300 focus:ring-rose-200"
+                      >
+                        <option value="social">Social</option>
+                        <option value="study_session">Study Session</option>
+                        <option value="workshop">Workshop</option>
+                        <option value="career_fair">Career Fair</option>
+                        <option value="hackathon">Hackathon</option>
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="event-date">Date & Time</Label>
+                        <Label htmlFor="start-time" className="text-sm font-medium text-gray-700">Start Time</Label>
                         <Input
-                          id="event-date"
+                          id="start-time"
                           type="datetime-local"
-                          value={eventForm.event_date}
-                          onChange={(e) => setEventForm({ ...eventForm, event_date: e.target.value })}
+                          value={eventForm.start_time}
+                          onChange={(e) => setEventForm({ ...eventForm, start_time: e.target.value })}
+                          className="mt-1 border-gray-200 focus:border-rose-300 focus:ring-rose-200"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="max-attendees">Max Attendees</Label>
+                        <Label htmlFor="end-time" className="text-sm font-medium text-gray-700">End Time</Label>
                         <Input
-                          id="max-attendees"
-                          type="number"
-                          value={eventForm.max_attendees}
-                          onChange={(e) => setEventForm({ ...eventForm, max_attendees: parseInt(e.target.value) })}
+                          id="end-time"
+                          type="datetime-local"
+                          value={eventForm.end_time}
+                          onChange={(e) => setEventForm({ ...eventForm, end_time: e.target.value })}
+                          className="mt-1 border-gray-200 focus:border-rose-300 focus:ring-rose-200"
                         />
                       </div>
                     </div>
                     <div>
-                      <Label htmlFor="event-location">Location</Label>
+                      <Label htmlFor="max-attendees" className="text-sm font-medium text-gray-700">Max Attendees</Label>
+                      <Input
+                        id="max-attendees"
+                        type="number"
+                        value={eventForm.max_attendees}
+                        onChange={(e) => setEventForm({ ...eventForm, max_attendees: parseInt(e.target.value) })}
+                        className="mt-1 border-gray-200 focus:border-rose-300 focus:ring-rose-200"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="event-location" className="text-sm font-medium text-gray-700">Location</Label>
                       <Input
                         id="event-location"
                         value={eventForm.location}
                         onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
-                        placeholder="Event location or virtual link"
+                        placeholder="Event location (leave empty for virtual events)"
+                        className="mt-1 border-gray-200 focus:border-rose-300 focus:ring-rose-200"
                       />
                     </div>
+                    <div>
+                      <Label htmlFor="virtual-link" className="text-sm font-medium text-gray-700">Virtual Meeting Link (Optional)</Label>
+                      <Input
+                        id="virtual-link"
+                        value={eventForm.virtual_link}
+                        onChange={(e) => setEventForm({ ...eventForm, virtual_link: e.target.value })}
+                        placeholder="Zoom, Teams, or other meeting link"
+                        className="mt-1 border-gray-200 focus:border-rose-300 focus:ring-rose-200"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="requires-rsvp"
+                        checked={eventForm.requires_rsvp}
+                        onChange={(e) => setEventForm({ ...eventForm, requires_rsvp: e.target.checked })}
+                        className="rounded border-gray-300 text-rose-600 focus:ring-rose-500"
+                      />
+                      <Label htmlFor="requires-rsvp" className="text-sm text-gray-700">Requires RSVP</Label>
+                    </div>
                   </div>
-                  <div className="flex justify-end space-x-2">
+                  <div className="flex justify-end space-x-3 pt-4">
                     <Button variant="outline" onClick={() => setShowCreateEvent(false)}>
                       Cancel
                     </Button>
-                    <Button onClick={createEvent}>
+                    <Button 
+                      onClick={createEvent}
+                      className="bg-gradient-to-r from-rose-500 to-purple-500 hover:from-rose-600 hover:to-purple-600 text-white"
+                    >
                       Create Event
                     </Button>
                   </div>
@@ -744,55 +972,132 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {events.map((event) => (
-              <Card key={event.id} className="p-6">
+              <Card key={event.id} className="p-6 bg-white/80 backdrop-blur-sm border-white/20 hover:shadow-lg transition-all duration-200">
                 <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h4 className="font-semibold text-lg">{event.title}</h4>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="font-semibold text-lg text-gray-800">{event.title}</h4>
+                      <Badge 
+                        variant="outline" 
+                        className={`text-xs ${
+                          event.event_type === 'hackathon' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                          event.event_type === 'workshop' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                          event.event_type === 'career_fair' ? 'bg-green-100 text-green-700 border-green-200' :
+                          event.event_type === 'study_session' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                          'bg-rose-100 text-rose-700 border-rose-200'
+                        }`}
+                      >
+                        {event.event_type?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Social'}
+                      </Badge>
+                    </div>
                     <p className="text-gray-600 text-sm mt-1">{event.description}</p>
                   </div>
-                  {event.is_virtual && (
-                    <Badge variant="outline" className="text-xs">
+                  {event.virtual_link && (
+                    <Badge variant="outline" className="text-xs bg-blue-50 text-blue-600 border-blue-200">
                       Virtual
                     </Badge>
                   )}
                 </div>
                 
-                <div className="space-y-2 mb-4">
+                <div className="space-y-3 mb-4">
                   <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <Calendar className="h-4 w-4" />
-                    <span>{new Date(event.event_date).toLocaleString()}</span>
+                    <Calendar className="h-4 w-4 text-rose-500" />
+                    <div className="flex flex-col">
+                      <span className="font-medium">
+                        {new Date(event.start_time).toLocaleDateString()} 
+                      </span>
+                      <span className="text-xs">
+                        {new Date(event.start_time).toLocaleTimeString()} - {new Date(event.end_time).toLocaleTimeString()}
+                      </span>
+                    </div>
                   </div>
+                  
+                  {event.location && (
+                    <div className="flex items-center space-x-2 text-sm text-gray-600">
+                      <MapPin className="h-4 w-4 text-rose-500" />
+                      <span>{event.location}</span>
+                    </div>
+                  )}
+                  
+                  {event.virtual_link && (
+                    <div className="flex items-center space-x-2 text-sm text-gray-600">
+                      <Globe className="h-4 w-4 text-blue-500" />
+                      <a 
+                        href={event.virtual_link} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 underline"
+                      >
+                        Join Virtual Meeting
+                      </a>
+                    </div>
+                  )}
+                  
                   <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <MapPin className="h-4 w-4" />
-                    <span>{event.location}</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <Users className="h-4 w-4" />
-                    <span>{event.attendee_count} / {event.max_attendees} attending</span>
+                    <Users className="h-4 w-4 text-rose-500" />
+                    <span>
+                      {event.rsvp_count || 0} / {event.max_attendees} 
+                      {event.requires_rsvp ? ' RSVP\'d' : ' attending'}
+                    </span>
                   </div>
                 </div>
 
-                <Button
-                  size="sm"
-                  variant={event.is_attending ? "outline" : "default"}
-                  onClick={() => rsvpEvent(event.id)}
-                  disabled={event.attendee_count >= event.max_attendees && !event.is_attending}
-                  className="w-full"
-                >
-                  {event.is_attending ? 'Attending' : 'RSVP'}
-                </Button>
+                {event.requires_rsvp && (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant={event.user_rsvp_status === 'going' ? "default" : "outline"}
+                      onClick={() => rsvpEvent(event.id, 'going')}
+                      disabled={(event.rsvp_count || 0) >= event.max_attendees && event.user_rsvp_status !== 'going'}
+                      className={`flex-1 ${
+                        event.user_rsvp_status === 'going' 
+                          ? 'bg-green-600 hover:bg-green-700 text-white' 
+                          : 'hover:bg-green-50 hover:text-green-700 hover:border-green-300'
+                      }`}
+                    >
+                      Going
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={event.user_rsvp_status === 'maybe' ? "default" : "outline"}
+                      onClick={() => rsvpEvent(event.id, 'maybe')}
+                      className={`flex-1 ${
+                        event.user_rsvp_status === 'maybe' 
+                          ? 'bg-yellow-600 hover:bg-yellow-700 text-white' 
+                          : 'hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-300'
+                      }`}
+                    >
+                      Maybe
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={event.user_rsvp_status === 'not_going' ? "default" : "outline"}
+                      onClick={() => rsvpEvent(event.id, 'not_going')}
+                      className={`flex-1 ${
+                        event.user_rsvp_status === 'not_going' 
+                          ? 'bg-red-600 hover:bg-red-700 text-white' 
+                          : 'hover:bg-red-50 hover:text-red-700 hover:border-red-300'
+                      }`}
+                    >
+                      Can&apos;t Go
+                    </Button>
+                  </div>
+                )}
               </Card>
             ))}
           </div>
         </TabsContent>
 
-        {/* Resources Tab */}
+        {/* Enhanced Resources Tab */}
         <TabsContent value="resources" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Club Resources</h3>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold">Club Resources</h3>
+              <p className="text-sm text-gray-600">Share and discover helpful resources with your club</p>
+            </div>
             <Dialog open={showCreateResource} onOpenChange={setShowCreateResource}>
               <DialogTrigger asChild>
-                <Button>
+                <Button className="bg-gradient-to-r from-rose-500 to-purple-500 hover:from-rose-600 hover:to-purple-600 text-white">
                   <Plus className="h-4 w-4 mr-2" />
                   Add Resource
                 </Button>
@@ -812,18 +1117,34 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
                       value={resourceForm.title}
                       onChange={(e) => setResourceForm({ ...resourceForm, title: e.target.value })}
                       placeholder="Resource title"
+                      className="mt-1 border-gray-200 focus:border-rose-300 focus:ring-rose-200"
                     />
                   </div>
                   <div>
                     <Label htmlFor="resource-type">Type</Label>
-                    <Select value={resourceForm.resource_type} onValueChange={(value: 'link' | 'file' | 'note') => setResourceForm({ ...resourceForm, resource_type: value })}>
-                      <SelectTrigger>
-                        <SelectValue />
+                    <Select value={resourceForm.resource_type} onValueChange={(value) => setResourceForm({ ...resourceForm, resource_type: value as 'link' | 'file' | 'note' })}>
+                      <SelectTrigger className="mt-1 border-gray-200 focus:border-rose-300 focus:ring-rose-200">
+                        <SelectValue placeholder="Select resource type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="link">Link</SelectItem>
-                        <SelectItem value="file">File</SelectItem>
-                        <SelectItem value="note">Note</SelectItem>
+                        <SelectItem value="link">
+                          <div className="flex items-center space-x-2">
+                            <ExternalLink className="h-4 w-4 text-blue-500" />
+                            <span>Link</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="file">
+                          <div className="flex items-center space-x-2">
+                            <FileText className="h-4 w-4 text-green-500" />
+                            <span>File</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="note">
+                          <div className="flex items-center space-x-2">
+                            <Hash className="h-4 w-4 text-purple-500" />
+                            <span>Note</span>
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -832,9 +1153,11 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
                       <Label htmlFor="resource-url">URL</Label>
                       <Input
                         id="resource-url"
+                        type="url"
                         value={resourceForm.resource_url}
                         onChange={(e) => setResourceForm({ ...resourceForm, resource_url: e.target.value })}
-                        placeholder="https://..."
+                        placeholder="https://example.com"
+                        className="mt-1 border-gray-200 focus:border-rose-300 focus:ring-rose-200"
                       />
                     </div>
                   )}
@@ -847,6 +1170,7 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
                         onChange={(e) => setResourceForm({ ...resourceForm, content: e.target.value })}
                         placeholder="Note content"
                         rows={4}
+                        className="mt-1 border-gray-200 focus:border-rose-300 focus:ring-rose-200"
                       />
                     </div>
                   )}
@@ -857,14 +1181,52 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
                       value={resourceForm.description}
                       onChange={(e) => setResourceForm({ ...resourceForm, description: e.target.value })}
                       placeholder="Describe this resource"
+                      className="mt-1 border-gray-200 focus:border-rose-300 focus:ring-rose-200"
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="resource-category">Category</Label>
+                    <Select value={resourceForm.category} onValueChange={(value) => setResourceForm({ ...resourceForm, category: value })}>
+                      <SelectTrigger className="mt-1 border-gray-200 focus:border-rose-300 focus:ring-rose-200">
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="study-materials">
+                          <div className="flex items-center space-x-2">
+                            <BookOpen className="h-4 w-4 text-blue-500" />
+                            <span>Study Materials</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="tools">
+                          <div className="flex items-center space-x-2">
+                            <Settings className="h-4 w-4 text-green-500" />
+                            <span>Tools</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="references">
+                          <div className="flex items-center space-x-2">
+                            <Star className="h-4 w-4 text-yellow-500" />
+                            <span>References</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="general">
+                          <div className="flex items-center space-x-2">
+                            <Hash className="h-4 w-4 text-gray-500" />
+                            <span>General</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="flex justify-end space-x-2">
+                <div className="flex justify-end space-x-3 pt-4">
                   <Button variant="outline" onClick={() => setShowCreateResource(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={createResource}>
+                  <Button 
+                    onClick={createResource}
+                    className="bg-gradient-to-r from-rose-500 to-purple-500 hover:from-rose-600 hover:to-purple-600 text-white"
+                  >
                     Add Resource
                   </Button>
                 </div>
@@ -872,55 +1234,155 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
             </Dialog>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {resources.map((resource) => (
-              <Card key={resource.id} className="p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-start space-x-3">
-                  <div className="flex-shrink-0">
-                    {resource.resource_type === 'link' && <ExternalLink className="h-5 w-5 text-blue-500" />}
-                    {resource.resource_type === 'file' && <FileText className="h-5 w-5 text-green-500" />}
-                    {resource.resource_type === 'note' && <BookOpen className="h-5 w-5 text-purple-500" />}
+          {/* Search and Filter Bar */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search resources..."
+                className="pl-10 border-gray-200 focus:border-rose-300 focus:ring-rose-200"
+              />
+            </div>
+            <Select defaultValue="all">
+              <SelectTrigger className="w-full sm:w-48 border-gray-200 focus:border-rose-300 focus:ring-rose-200">
+                <SelectValue placeholder="Filter by type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="link">Links</SelectItem>
+                <SelectItem value="file">Files</SelectItem>
+                <SelectItem value="note">Notes</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select defaultValue="all-categories">
+              <SelectTrigger className="w-full sm:w-48 border-gray-200 focus:border-rose-300 focus:ring-rose-200">
+                <SelectValue placeholder="Filter by category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all-categories">All Categories</SelectItem>
+                <SelectItem value="study-materials">Study Materials</SelectItem>
+                <SelectItem value="tools">Tools</SelectItem>
+                <SelectItem value="references">References</SelectItem>
+                <SelectItem value="general">General</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {resourcesLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
+              <span className="ml-2 text-gray-600">Loading resources...</span>
+            </div>
+          ) : resources.length === 0 ? (
+            <div className="text-center py-12">
+              <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No resources yet</h3>
+              <p className="text-gray-500 mb-4">Be the first to share a helpful resource with your club!</p>
+              {(userRole === 'admin' || userRole === 'moderator') && (
+                <Button onClick={() => setShowCreateResource(true)} className="bg-gradient-to-r from-rose-500 to-purple-500 hover:from-rose-600 hover:to-purple-600 text-white">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add First Resource
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {resources.map((resource) => (
+              <Card key={resource.id} className="group p-6 bg-white/80 backdrop-blur-sm border-white/20 hover:shadow-lg hover:scale-[1.02] transition-all duration-200">
+                <div className="space-y-4">
+                  {/* Header with type icon and category */}
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className={`p-2 rounded-lg ${
+                        resource.resource_type === 'link' ? 'bg-blue-100 text-blue-600' :
+                        resource.resource_type === 'file' ? 'bg-green-100 text-green-600' :
+                        'bg-purple-100 text-purple-600'
+                      }`}>
+                        {resource.resource_type === 'link' && <ExternalLink className="h-4 w-4" />}
+                        {resource.resource_type === 'file' && <FileText className="h-4 w-4" />}
+                        {resource.resource_type === 'note' && <Hash className="h-4 w-4" />}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-gray-900 group-hover:text-rose-600 transition-colors">
+                          {resource.title}
+                        </h4>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-600">
+                      {resource.category || 'General'}
+                    </Badge>
                   </div>
                   
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium truncate">{resource.title}</h4>
-                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">{resource.description}</p>
-                    
-                    <div className="flex items-center space-x-2 mt-3">
-                      <Avatar className="h-6 w-6">
-                        <AvatarImage src={resource.user_profile.avatar_url} />
-                        <AvatarFallback className="text-xs">
-                          {resource.user_profile.full_name?.charAt(0) || 'U'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-xs text-gray-500">{resource.user_profile.full_name}</span>
-                      <span className="text-xs text-gray-400">•</span>
-                      <span className="text-xs text-gray-500">{new Date(resource.created_at).toLocaleDateString()}</span>
+                  {/* Description */}
+                  <p className="text-sm text-gray-600 line-clamp-2">{resource.description}</p>
+                  
+                  {/* Note content preview */}
+                  {resource.resource_type === 'note' && resource.content && (
+                    <div className="p-3 bg-gradient-to-r from-purple-50 to-rose-50 rounded-lg border border-purple-100">
+                      <p className="text-sm text-gray-700 line-clamp-3">{resource.content}</p>
                     </div>
-                    
+                  )}
+                  
+                  {/* Author and date */}
+                  <div className="flex items-center space-x-2 pt-2 border-t border-gray-100">
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={resource.user_profile.avatar_url} />
+                      <AvatarFallback className="text-xs bg-gradient-to-r from-rose-400 to-purple-400 text-white">
+                        {resource.user_profile.full_name?.charAt(0) || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-xs text-gray-500 font-medium">{resource.user_profile.full_name}</span>
+                    <span className="text-xs text-gray-400">•</span>
+                    <span className="text-xs text-gray-500">{new Date(resource.created_at).toLocaleDateString()}</span>
+                  </div>
+                  
+                  {/* Action buttons */}
+                  <div className="flex space-x-2 pt-2">
                     {resource.resource_type === 'link' && resource.resource_url && (
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="w-full mt-3"
+                        className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
                         onClick={() => window.open(resource.resource_url, '_blank')}
                       >
                         <ExternalLink className="h-3 w-3 mr-2" />
                         Open Link
                       </Button>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={`border-gray-200 hover:border-rose-300 hover:text-rose-600 ${
+                        savedResources.has(resource.id) ? 'bg-rose-50 border-rose-300 text-rose-600' : ''
+                      }`}
+                      onClick={() => savedResources.has(resource.id) ? unsaveResource(resource.id) : saveResource(resource.id)}
+                    >
+                      <Bookmark className={`h-3 w-3 mr-2 ${savedResources.has(resource.id) ? 'fill-current' : ''}`} />
+                      {savedResources.has(resource.id) ? 'Saved' : 'Save'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-gray-200 hover:border-purple-300 hover:text-purple-600"
+                      onClick={() => shareResource(resource)}
+                    >
+                      <Share2 className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
               </Card>
             ))}
-          </div>
+            </div>
+          )}
         </TabsContent>
 
-        {/* Leaderboard Tab */}
+        {/* Enhanced Leaderboard Tab */}
         <TabsContent value="leaderboard" className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">Club Leaderboard</h3>
-            <Badge variant="outline">Based on XP</Badge>
+            <Badge variant="outline" className="border-purple-200 text-purple-700">
+              <Trophy className="h-3 w-3 mr-1" />
+              Based on XP
+            </Badge>
           </div>
 
           <div className="space-y-4">
@@ -928,10 +1390,19 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
               .filter(member => member.user_reputation)
               .sort((a, b) => (b.user_reputation?.total_xp || 0) - (a.user_reputation?.total_xp || 0))
               .map((member, index) => (
-                <Card key={member.id} className="p-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-rose-500 to-amber-500 text-white font-bold">
-                      {index + 1}
+                <Card key={member.id} className="p-6 bg-white/80 backdrop-blur-sm border-white/20 hover:shadow-lg transition-all duration-200">
+                  <div className="flex items-center space-x-6">
+                    <div className={`flex items-center justify-center w-12 h-12 rounded-full font-bold text-white ${
+                       index === 0 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 shadow-lg' :
+                       index === 1 ? 'bg-gradient-to-r from-gray-400 to-gray-600 shadow-lg' :
+                       index === 2 ? 'bg-gradient-to-r from-amber-600 to-amber-800 shadow-lg' :
+                       'bg-gradient-to-r from-rose-500 to-purple-500'
+                     }`}>
+                      {index < 3 ? (
+                        <Trophy className="h-6 w-6" />
+                      ) : (
+                        index + 1
+                      )}
                     </div>
                     
                     <Avatar className="h-10 w-10">
@@ -942,25 +1413,44 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
                     </Avatar>
                     
                     <div className="flex-1">
-                      <h4 className="font-medium">{member.user_profile.full_name}</h4>
+                      <h4 className="font-semibold text-gray-800">{member.user_profile.full_name}</h4>
                       <p className="text-sm text-gray-500">@{member.user_profile.username}</p>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <Badge 
+                          variant={member.role === 'admin' ? 'default' : 'secondary'}
+                          className={`text-xs ${
+                            member.role === 'admin' 
+                              ? 'bg-gradient-to-r from-rose-500 to-purple-500 text-white' 
+                              : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {member.role === 'admin' && <Crown className="h-3 w-3 mr-1" />}
+                          {member.role}
+                        </Badge>
+                      </div>
                     </div>
                     
                     <div className="text-right">
-                      <p className="font-semibold">{member.user_reputation?.total_xp || 0} XP</p>
-                      <p className="text-sm text-gray-500">Level {member.user_reputation?.level || 1}</p>
-                    </div>
-                    
-                    {index < 3 && (
-                      <div className="flex-shrink-0">
-                        {index === 0 && <Trophy className="h-6 w-6 text-yellow-500" />}
-                        {index === 1 && <Award className="h-6 w-6 text-gray-400" />}
-                        {index === 2 && <Award className="h-6 w-6 text-amber-600" />}
+                      <div className="flex items-center space-x-2 mb-1">
+                        <Badge variant="outline" className="border-purple-200 text-purple-700">
+                          Level {member.user_reputation?.level}
+                        </Badge>
                       </div>
-                    )}
+                      <p className="text-lg font-bold text-gray-800">
+                        {member.user_reputation?.total_xp?.toLocaleString()} XP
+                      </p>
+                    </div>
                   </div>
                 </Card>
               ))}
+            
+            {members.filter(member => member.user_reputation).length === 0 && (
+              <Card className="p-12 text-center bg-white/80 backdrop-blur-sm border-white/20">
+                <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-800 mb-2">No rankings yet</h3>
+                <p className="text-gray-600">Member rankings will appear as they earn XP!</p>
+              </Card>
+            )}
           </div>
         </TabsContent>
       </Tabs>
@@ -968,75 +1458,116 @@ export function ClubSpace({ club, onBack }: ClubSpaceProps) {
       {/* Member Profile Dialog */}
       {showMemberProfile && (
         <Dialog open={!!showMemberProfile} onOpenChange={() => setShowMemberProfile(null)}>
-          <DialogContent>
+          <DialogContent className="bg-white/95 backdrop-blur-sm">
             <DialogHeader>
-              <DialogTitle>Manage Member</DialogTitle>
-              <DialogDescription>
+              <DialogTitle className="text-xl font-bold text-gray-800">Manage Member</DialogTitle>
+              <DialogDescription className="text-gray-600">
                 Update {showMemberProfile.user_profile.full_name}&apos;s role or remove them from the club
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-4">
-                <Avatar className="h-16 w-16">
+            <div className="space-y-6">
+              <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                <Avatar className="h-16 w-16 ring-2 ring-rose-100">
                   <AvatarImage src={showMemberProfile.user_profile.avatar_url} />
-                  <AvatarFallback>
+                  <AvatarFallback className="bg-gradient-to-br from-rose-400 to-purple-400 text-white font-bold text-lg">
                     {showMemberProfile.user_profile.full_name?.charAt(0) || 'U'}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <h4 className="font-semibold">{showMemberProfile.user_profile.full_name}</h4>
+                  <h4 className="font-semibold text-gray-800">{showMemberProfile.user_profile.full_name}</h4>
                   <p className="text-gray-500">@{showMemberProfile.user_profile.username}</p>
-                  <Badge variant="secondary" className="mt-1">
+                  <Badge variant="secondary" className="mt-1 bg-gray-100 text-gray-700">
                     {showMemberProfile.role}
                   </Badge>
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <Label>Update Role</Label>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-gray-700">Update Role</Label>
                 <div className="flex space-x-2">
                   <Button
                     size="sm"
                     variant={showMemberProfile.role === 'member' ? 'default' : 'outline'}
-                    onClick={() => updateMemberRole(showMemberProfile.id, 'member')}
+                    onClick={() => updateMemberRole(showMemberProfile.user_id, 'member')}
+                    className={showMemberProfile.role === 'member' ? 'bg-gradient-to-r from-rose-500 to-purple-500 text-white' : ''}
                   >
                     Member
                   </Button>
                   <Button
                     size="sm"
                     variant={showMemberProfile.role === 'moderator' ? 'default' : 'outline'}
-                    onClick={() => updateMemberRole(showMemberProfile.id, 'moderator')}
+                    onClick={() => updateMemberRole(showMemberProfile.user_id, 'moderator')}
+                    className={showMemberProfile.role === 'moderator' ? 'bg-gradient-to-r from-rose-500 to-purple-500 text-white' : ''}
                   >
                     Moderator
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={showMemberProfile.role === 'admin' ? 'default' : 'outline'}
-                    onClick={() => updateMemberRole(showMemberProfile.id, 'admin')}
-                  >
-                    Admin
                   </Button>
                 </div>
               </div>
               
-              <Separator />
-              
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => {
-                  removeMember(showMemberProfile.id);
-                  setShowMemberProfile(null);
-                }}
-                className="w-full"
-              >
-                <UserX className="h-4 w-4 mr-2" />
-                Remove from Club
-              </Button>
+              <div className="pt-4 border-t border-gray-200">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => removeMember(showMemberProfile.user_id)}
+                  className="w-full"
+                >
+                  <UserX className="h-4 w-4 mr-2" />
+                  Remove from Club
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Banner Upload Dialog */}
+      <Dialog open={showBannerUpload} onOpenChange={setShowBannerUpload}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Update Club Banner</DialogTitle>
+            <DialogDescription>
+              Upload a new banner image for your club. Recommended size: 1200x300px
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="banner-file">Banner Image</Label>
+              <Input
+                id="banner-file"
+                type="file"
+                accept="image/*"
+                onChange={(e) => setBannerFile(e.target.files?.[0] || null)}
+                className="mt-1"
+              />
+            </div>
+            {bannerFile && (
+              <div className="text-sm text-gray-600">
+                Selected: {bannerFile.name}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowBannerUpload(false);
+                setBannerFile(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={uploadBanner}
+              disabled={!bannerFile}
+              className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Banner
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
