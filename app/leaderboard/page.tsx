@@ -1,15 +1,13 @@
-import { Metadata } from 'next';
-import LeaderboardPage from '@/components/leaderboard/leaderboard-page';
+import { Suspense } from 'react';
+import { LeaderboardPage } from '@/components/leaderboard/leaderboard-page';
+import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
-export const metadata: Metadata = {
-  title: 'Leaderboard | StudIQ',
-  description: 'View the StudIQ leaderboard and see how you rank among other students.',
-};
+export const dynamic = 'force-dynamic';
 
-// Make the page static
-export const dynamic = 'force-static';
-export const revalidate = 3600; // Revalidate every hour
-
-export default function Leaderboard() {
-  return <LeaderboardPage />;
+export default function LeaderboardRoute() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>}>
+      <LeaderboardPage />
+    </Suspense>
+  );
 }

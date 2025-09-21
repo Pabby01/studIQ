@@ -1,24 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Configure static and dynamic routes
+  // Configure build settings
   eslint: {
     ignoreDuringBuilds: true,
   },
   images: { unoptimized: true },
   optimizeFonts: true,
-  // Enable static page generation
   output: 'standalone',
-  // Configure static paths
+  // Disable static optimization
+  staticPageGenerationTimeout: 0,
   experimental: {
-    // Enable static optimization where possible
+    // Enable package optimization
     optimizePackageImports: ['@/components/ui'],
-    // Improve static generation
-    workerThreads: true,
-    optimizeCss: true,
-    // Optimize server components
-    serverActions: {
-      bodySizeLimit: '2mb',
-    },
+    // Enable server components optimization
+    serverComponentsExternalPackages: ['@supabase/supabase-js'],
+    // Enable server actions
+    serverActions: true,
   },
   // Configure page settings
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
