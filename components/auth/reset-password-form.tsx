@@ -407,7 +407,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
 
       <div className="text-center">
         <Button 
-          onClick={() => router.push('/auth/signin')}
+          onClick={() => router.push('/login')}
           variant="ghost" 
           className="text-sm"
           disabled={state === 'loading'}
