@@ -15,7 +15,7 @@ const TEST_CONFIG = {
   supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
   supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   testUserId: 'user1-test-id',
-  apiBaseUrl: 'http://localhost:3000/api'
+  apiBaseUrl: 'https://stud-iq-nine.vercel.app/api'
 };
 
 // Initialize Supabase client

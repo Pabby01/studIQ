@@ -76,7 +76,7 @@ class EmailService {
 
   private generatePasswordResetTemplate(resetLink: string, userEmail: string): EmailTemplate {
     const appName = process.env.NEXT_PUBLIC_APP_NAME || 'StudIQ';
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://stud-iq-nine.vercel.app';
 
     const html = `
       <!DOCTYPE html>
@@ -217,7 +217,7 @@ class EmailService {
         };
       }
 
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://stud-iq-nine.vercel.app';
       const resetLink = `${appUrl}/auth/reset-password?token=${resetToken}`;
       
       const template = this.generatePasswordResetTemplate(resetLink, email);
