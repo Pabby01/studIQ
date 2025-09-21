@@ -15,6 +15,10 @@ const nextConfig = {
     // Improve static generation
     workerThreads: true,
     optimizeCss: true,
+    // Optimize server components
+    serverActions: {
+      bodySizeLimit: '2mb',
+    },
   },
   // Configure page settings
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],

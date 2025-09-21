@@ -69,15 +69,6 @@ const LeaderboardPage: React.FC = () => {
   
   const supabase = createClientComponentClient();
 
-  // Get auth token for API requests
-  const getAuthToken = async () => {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    if (error || !session) {
-      throw new Error('Failed to get auth session');
-    }
-    return session.access_token;
-  };
-
   // Fetch leaderboard data
   const fetchLeaderboard = async (hubType?: string, clubId?: string) => {
     try {
@@ -92,12 +83,7 @@ const LeaderboardPage: React.FC = () => {
         params.append('clubId', clubId);
       }
       
-      const token = await getAuthToken();
-      const response = await fetch(`/api/leaderboard?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await fetch(`/api/leaderboard?${params.toString()}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch leaderboard');

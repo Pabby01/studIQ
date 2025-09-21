@@ -1,23 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 
 export async function GET(request: NextRequest) {
   try {
-    // Get auth token from header
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const supabase = createRouteHandlerClient({ cookies });
     
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) {
+    // Get current user from session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -43,7 +34,7 @@ export async function GET(request: NextRequest) {
     const { data: currentUserXp, error: userXpError } = await supabase
       .from('user_xp')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', session.user.id)
       .single();
 
     if (userXpError && userXpError.code !== 'PGRST116') {
@@ -51,7 +42,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get current user's position in the leaderboard
-    const currentUserPosition = leaderboardData?.findIndex((entry: any) => entry.user_id === user.id) + 1 || null;
+    const currentUserPosition = leaderboardData?.findIndex((entry: any) => entry.user_id === session.user.id) + 1 || null;
 
     // Format leaderboard data
     const formattedLeaderboard = leaderboardData?.map((entry: any, index: number) => ({
@@ -60,7 +51,7 @@ export async function GET(request: NextRequest) {
       username: entry.username,
       avatarUrl: entry.avatar_url,
       xpAmount: entry.xp_amount,
-      isCurrentUser: entry.user_id === user.id
+      isCurrentUser: entry.user_id === session.user.id
     })) || [];
 
     // Calculate user's level based on total XP
