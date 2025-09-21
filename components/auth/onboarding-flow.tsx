@@ -41,7 +41,7 @@ export function OnboardingFlow() {
               Welcome to StudIQ
             </h1>
             <p className="text-gray-600 text-sm">
-              Let's set up your profile and wallet
+              Let&apos;s set up your profile and wallet
             </p>
           </div>
 
@@ -108,7 +108,7 @@ export function OnboardingFlow() {
                 <Wallet className="w-12 h-12 text-blue-600 mx-auto mb-4" />
                 <h2 className="text-xl font-semibold mb-2">Create Your Wallet</h2>
                 <p className="text-gray-600 text-sm">
-                  We'll create a secure Solana wallet for you
+                  We&apos;ll create a secure Solana wallet for you
                 </p>
               </div>
 
@@ -159,7 +159,7 @@ export function OnboardingFlow() {
             <div className="space-y-6">
               <div className="text-center">
                 <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold mb-2">You're All Set!</h2>
+                <h2 className="text-xl font-semibold mb-2">You&apos;re All Set!</h2>
                 <p className="text-gray-600 text-sm">
                   Welcome to StudIQ. Start your learning and financial journey.
                 </p>

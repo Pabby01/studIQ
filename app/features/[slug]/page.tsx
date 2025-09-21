@@ -94,14 +94,7 @@ export default function FeatureDetail({ params }: { params: { slug: string } }) 
 
   if (!feature) return notFound();
 
-  // Render full interactive hubs when slugs match
-  if (slug === 'ai-learning') {
-    return <LearningHub />;
-  }
-  if (slug === 'finance-hub') {
-    return <FinanceHub />;
-  }
-
+ 
   const Icon = feature.icon;
 
   return (
