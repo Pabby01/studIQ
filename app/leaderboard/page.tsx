@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   description: 'View the StudIQ leaderboard and see how you rank among other students.',
 };
 
+// Make the page static
+export const dynamic = 'force-static';
+export const revalidate = 3600; // Revalidate every hour
+
 export default function Leaderboard() {
   return <LeaderboardPage />;
 }

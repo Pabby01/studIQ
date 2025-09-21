@@ -1,11 +1,24 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Remove static export to allow dynamic rendering and Route Handlers
+  // Configure static and dynamic routes
   eslint: {
     ignoreDuringBuilds: true,
   },
   images: { unoptimized: true },
   optimizeFonts: true,
+  // Enable static page generation
+  output: 'standalone',
+  // Configure static paths
+  experimental: {
+    // Enable static optimization where possible
+    optimizePackageImports: ['@/components/ui'],
+    // Improve static generation
+    workerThreads: true,
+    optimizeCss: true,
+  },
+  // Configure page settings
+  pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
+  // Configure webpack
   webpack: (config) => {
     config.ignoreWarnings = [
       ...(config.ignoreWarnings || []),
