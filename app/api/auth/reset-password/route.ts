@@ -197,6 +197,8 @@ export async function POST(request: NextRequest) {
     AuthLogger.info('Token validated, retrieving user data', { endpoint });
 
     // Get user details
+    AuthLogger.info('Looking up user by ID', { endpoint, userId: tokenData!.userId });
+    
     const userLookupResult = await safeExecute(
       () => supabase.auth.admin.getUserById(tokenData!.userId),
       endpoint,
@@ -204,15 +206,24 @@ export async function POST(request: NextRequest) {
     );
 
     if (!userLookupResult.success) {
+      AuthLogger.error('User lookup execution failed', userLookupResult.error, { endpoint, userId: tokenData!.userId });
       return userLookupResult.error!;
     }
 
     const { data: user, error: userError } = userLookupResult.data!;
     
-    if (userError || !user) {
-      AuthLogger.error('User lookup failed', userError, { endpoint, userId: tokenData!.userId });
+    if (userError) {
+      AuthLogger.error('User lookup returned error', userError, { endpoint, userId: tokenData!.userId });
       return NextResponse.json(
-        { error: 'User not found' },
+        { error: 'Failed to retrieve user information' },
+        { status: 500 }
+      );
+    }
+    
+    if (!user) {
+      AuthLogger.error('User not found in auth system', null, { endpoint, userId: tokenData!.userId });
+      return NextResponse.json(
+        { error: 'User not found in the authentication system' },
         { status: 404 }
       );
     }
