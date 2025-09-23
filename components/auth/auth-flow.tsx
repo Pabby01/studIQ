@@ -4,9 +4,13 @@ import { useState } from 'react';
 import { SignInForm } from './sign-in-form';
 import { SignUpForm } from './sign-up-form';
 import { OnboardingFlow } from './onboarding-flow';
+import { EmailVerificationMessage } from './email-verification-message';
+
+type AuthMode = 'signin' | 'signup' | 'verify' | 'onboarding';
 
 export function AuthFlow() {
-  const [mode, setMode] = useState<'signin' | 'signup' | 'onboarding'>('signin');
+  const [mode, setMode] = useState<AuthMode>('signin');
+  const [verificationEmail, setVerificationEmail] = useState('');
 
   if (mode === 'onboarding') {
     return <OnboardingFlow />;
@@ -25,10 +29,18 @@ export function AuthFlow() {
 
           {mode === 'signin' ? (
             <SignInForm onSwitchToSignUp={() => setMode('signup')} />
+          ) : mode === 'verify' ? (
+            <EmailVerificationMessage 
+              email={verificationEmail}
+              onContinue={() => setMode('onboarding')}
+            />
           ) : (
             <SignUpForm 
               onSwitchToSignIn={() => setMode('signin')}
-              onSuccess={() => setMode('onboarding')}
+              onSuccess={(email) => {
+                setVerificationEmail(email);
+                setMode('verify');
+              }}
             />
           )}
         </div>

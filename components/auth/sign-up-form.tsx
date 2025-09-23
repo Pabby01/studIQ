@@ -9,7 +9,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner';
 
 interface SignUpFormProps {
   onSwitchToSignIn: () => void;
-  onSuccess: () => void;
+  onSuccess: (email: string) => void;
 }
 
 export function SignUpForm({ onSwitchToSignIn, onSuccess }: SignUpFormProps) {
@@ -31,7 +31,7 @@ export function SignUpForm({ onSwitchToSignIn, onSuccess }: SignUpFormProps) {
       setError(error.message);
       setLoading(false);
     } else {
-      onSuccess();
+      onSuccess(email);
     }
   };
 

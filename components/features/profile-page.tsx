@@ -32,6 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletBalance } from '@/components/wallet/wallet-balance';
+import { Loader2 } from 'lucide-react';
 
 const USER_STATS = {
   coursesCompleted: 5,
@@ -65,11 +66,13 @@ const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [editing, setEditing] = useState(false);
+  const [sendingVerification, setSendingVerification] = useState(false);
 
   // Local form fields
   const displayName = useMemo(() => profile?.preferences?.display_name || '', [profile]);
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
+  const [school, setSchool] = useState('');
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [usernameError, setUsernameError] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -162,7 +165,12 @@ const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
           'content-type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ username, bio, preferences: { display_name: displayName } })
+        body: JSON.stringify({ 
+          username, 
+          bio, 
+          school,
+          preferences: { display_name: displayName } 
+        })
       });
 
       // Handle duplicate username explicitly
@@ -183,6 +191,37 @@ const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
       toast({ title: 'Error', description: e?.message || 'Save failed', variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    try {
+      setSendingVerification(true);
+      const token = await getAccessToken();
+      const res = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || 'Failed to resend verification email');
+      
+      toast({ 
+        title: 'Verification email sent', 
+        description: 'Please check your inbox and click the verification link.' 
+      });
+    } catch (e: any) {
+      console.error(e);
+      toast({ 
+        title: 'Error', 
+        description: e?.message || 'Failed to send verification email', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setSendingVerification(false);
     }
   };
 
@@ -349,6 +388,50 @@ const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
                       {usernameError ? (
                         <p className="text-xs text-red-600 mt-1">{usernameError}</p>
                       ) : null}
+                    </div>
+                    <div>
+                      <Label htmlFor="school">School/Institution</Label>
+                      <Input
+                        id="school"
+                        value={school}
+                        onChange={(e) => setSchool(e.target.value)}
+                        placeholder="Enter your school or institution"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label>Email Address</Label>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <div className="flex-1 px-3 py-2 bg-gray-50 rounded-md text-sm">
+                          {user?.email}
+                          {user?.email_confirmed_at ? (
+                            <Badge variant="default" className="bg-green-500">
+                              Verified
+                            </Badge>
+                          ) : (
+                            <Badge variant="default" className="bg-yellow-500">
+                              Unverified
+                            </Badge>
+                          )}
+                        </div>
+                        {!user?.email_confirmed_at && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleResendVerification}
+                            disabled={sendingVerification}
+                          >
+                            {sendingVerification ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Sending...
+                              </>
+                            ) : (
+                              'Verify'
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <div className="md:col-span-2">
                       <Label htmlFor="bio">Bio</Label>

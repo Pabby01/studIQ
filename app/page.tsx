@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { BookOpen, Brain, Sparkles, Wallet, PiggyBank, BarChart3, Users, User as UserIcon, Shield, Smartphone, ArrowRight } from 'lucide-react';
+import { Logo } from '@/components/ui/logo';
+import { BookOpen, Brain, Sparkles, Wallet, PiggyBank, BarChart3, Users, User as UserIcon, Shield, Smartphone, ArrowRight, Facebook, Twitter, Instagram, Linkedin, Github } from 'lucide-react';
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
@@ -17,9 +18,8 @@ export default function Home() {
       {/* Header */}
       <header className="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-white/60 bg-white/80 border-b border-slate-200/60">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="inline-block h-8 w-8 rounded-lg bg-gradient-to-tr from-indigo-600 via-violet-600 to-sky-500" aria-hidden="true" />
-            <span className="font-semibold tracking-tight">StudIQ</span>
+          <Link href="/" className="flex items-center">
+            <Logo size="sm" className="hover:opacity-90 transition-opacity" />
           </Link>
           <nav className="flex items-center gap-2 sm:gap-3">
             <Link href="/features" className="hidden sm:inline-block text-sm text-slate-600 hover:text-slate-900 transition-colors">Features</Link>
@@ -135,13 +135,58 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="py-10 border-t border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-500">
-          <div>© {new Date().getFullYear()} StudIQ. All rights reserved.</div>
-          <div className="flex items-center gap-4">
-            <Link href="/login" className="hover:text-slate-900 transition-colors">Login</Link>
-            <Link href="/features" className="hover:text-slate-900 transition-colors">Features</Link>
-            <Link href="/why" className="hover:text-slate-900 transition-colors">Why</Link>
-            <Link href="/contact" className="hover:text-slate-900 transition-colors">Contact</Link>
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+            {/* Logo and Description */}
+            <div className="flex flex-col items-center sm:items-start gap-4">
+              <Logo size="sm" />
+              <p className="text-sm text-slate-600 text-center sm:text-left">
+                Empowering students through decentralized education and finance
+              </p>
+            </div>
+            
+            {/* Quick Links */}
+            <div className="flex flex-col items-center sm:items-start gap-2">
+              <h3 className="font-semibold text-slate-900 mb-2">Quick Links</h3>
+              <Link href="/login" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Login</Link>
+              <Link href="/features" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Features</Link>
+              <Link href="/why" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Why StudIQ</Link>
+              <Link href="/contact" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Contact</Link>
+            </div>
+            
+            {/* Social Links */}
+            <div className="flex flex-col items-center sm:items-start gap-4">
+              <h3 className="font-semibold text-slate-900">Connect With Us</h3>
+              <div className="flex items-center gap-4">
+                <a href="https://twitter.com/studiq" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-400 transition-colors">
+                  <Twitter className="h-5 w-5" />
+                  <span className="sr-only">Twitter</span>
+                </a>
+                <a href="https://facebook.com/studiq" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-600 transition-colors">
+                  <Facebook className="h-5 w-5" />
+                  <span className="sr-only">Facebook</span>
+                </a>
+                <a href="https://instagram.com/studiq" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-rose-500 transition-colors">
+                  <Instagram className="h-5 w-5" />
+                  <span className="sr-only">Instagram</span>
+                </a>
+                <a href="https://linkedin.com/company/studiq" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-700 transition-colors">
+                  <Linkedin className="h-5 w-5" />
+                  <span className="sr-only">LinkedIn</span>
+                </a>
+                <a href="https://github.com/studiq" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-slate-900 transition-colors">
+                  <Github className="h-5 w-5" />
+                  <span className="sr-only">GitHub</span>
+                </a>
+              </div>
+            </div>
+          </div>
+          
+          {/* Copyright */}
+          <div className="mt-8 pt-6 border-t border-slate-200 text-center">
+            <p className="text-sm text-slate-500">
+              © {new Date().getFullYear()} StudIQ. All rights reserved.
+            </p>
           </div>
         </div>
       </footer>

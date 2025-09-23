@@ -35,13 +35,14 @@ export const SolanaProvider: FC<Props> = ({ children }) => {
 
   const wallets = useMemo(() => {
     const isProduction = process.env.NEXT_PUBLIC_SOLANA_CONFIG === 'PROD';
-    const baseWallets = [new PhantomWalletAdapter()];
+    const baseWallets = [new SolflareWalletAdapter()];
     
     if (isProduction) {
       return [
         ...baseWallets,
         new SolflareWalletAdapter(),
-        new TorusWalletAdapter(),
+        new TorusWalletAdapter(), 
+        new PhantomWalletAdapter(),
         new LedgerWalletAdapter(),
         new CloverWalletAdapter()
       ];
