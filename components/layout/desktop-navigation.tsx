@@ -5,6 +5,7 @@ import { BookOpen, DollarSign, MapPin, User, Bell, Search, CheckCircle2, Users }
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Logo } from '@/components/ui/logo';
 import { TabType } from './main-layout';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -113,7 +114,9 @@ export function DesktopNavigation({ activeTab, onTabChange }: DesktopNavigationP
         <div className="h-16 flex items-center justify-between">
           {/* Left: Brand & Tabs */}
           <div className="flex items-center space-x-6">
-            <button onClick={() => onTabChange('learning')} className="text-xl font-bold text-blue-600">StudIQ</button>
+            <div onClick={() => onTabChange('learning')}>
+              <Logo size="sm" className="cursor-pointer" />
+            </div>
             <nav className="hidden md:flex items-center space-x-2">
               {NAV_ITEMS.map((item) => {
                 const Icon = item.icon;

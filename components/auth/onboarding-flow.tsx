@@ -1,30 +1,57 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { CheckCircle, Wallet, User, Upload } from 'lucide-react';
+import { CheckCircle, User, Upload, GraduationCap, Mail, Phone } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { africanUniversities, University } from '@/lib/universities';
+import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
-const DEFAULT_AVATARS = [
-  'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/697509/pexels-photo-697509.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/771742/pexels-photo-771742.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-  'https://images.pexels.com/photos/1674752/pexels-photo-1674752.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop',
-];
+interface StudentData {
+  fullName: string;
+  profileImage: string | null;
+  university: University;
+  otherUniversity?: string;
+  yearOfStudy: string;
+  academicInterests: string;
+  contactMethod: 'email' | 'phone' | 'both';
+  email: string;
+  phone: string;
+}
+
+const YEARS_OF_STUDY = ['1st Year', '2nd Year', '3rd Year', '4th Year', '5th Year', 'Postgraduate'];
 
 export function OnboardingFlow() {
   const [step, setStep] = useState(1);
-  const [username, setUsername] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState(DEFAULT_AVATARS[0]);
-  const [walletCreated, setWalletCreated] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [studentData, setStudentData] = useState<StudentData>({
+    fullName: '',
+    profileImage: null,
+    university: africanUniversities[0],
+    yearOfStudy: YEARS_OF_STUDY[0],
+    academicInterests: '',
+    contactMethod: 'email',
+    email: '',
+    phone: ''
+  });
 
-  const handleCreateWallet = async () => {
-    // Simulate wallet creation
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setWalletCreated(true);
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setStudentData(prev => ({
+          ...prev,
+          profileImage: reader.result as string
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleComplete = () => {
@@ -41,13 +68,13 @@ export function OnboardingFlow() {
               Welcome to StudIQ
             </h1>
             <p className="text-gray-600 text-sm">
-              Let&apos;s set up your profile and wallet
+              Let&apos;s set up your student profile
             </p>
           </div>
 
           {/* Progress Steps */}
           <div className="flex justify-between mb-8">
-            {[1, 2, 3].map((num) => (
+            {[1, 2].map((num) => (
               <div
                 key={num}
                 className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
@@ -65,37 +92,107 @@ export function OnboardingFlow() {
             <div className="space-y-6">
               <div className="text-center">
                 <User className="w-12 h-12 text-blue-600 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold mb-2">Choose Your Profile</h2>
+                <h2 className="text-xl font-semibold mb-2">Personal Details</h2>
                 <p className="text-gray-600 text-sm">
-                  Select an avatar and confirm your username
+                  Tell us about yourself
                 </p>
               </div>
 
-              <div>
-                <Label>Profile Picture</Label>
-                <div className="grid grid-cols-4 gap-3 mt-2">
-                  {DEFAULT_AVATARS.map((avatar, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedAvatar(avatar)}
-                      className={`relative rounded-full p-1 ${
-                        selectedAvatar === avatar
-                          ? 'ring-2 ring-blue-600'
-                          : 'ring-1 ring-gray-200'
-                      }`}
+              <div className="space-y-4">
+                <div>
+                  <Label>Full Name</Label>
+                  <Input
+                    value={studentData.fullName}
+                    onChange={(e) => setStudentData(prev => ({ ...prev, fullName: e.target.value }))}
+                    placeholder="Enter your full name"
+                  />
+                </div>
+
+                <div>
+                  <Label>Profile Picture</Label>
+                  <div className="mt-2 flex items-center space-x-4">
+                    <Avatar className="w-16 h-16">
+                      <AvatarImage src={studentData.profileImage || undefined} />
+                      <AvatarFallback>
+                        {studentData.fullName.charAt(0) || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <Button
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
                     >
-                      <Avatar className="w-12 h-12">
-                        <AvatarImage src={avatar} />
-                        <AvatarFallback>U{index + 1}</AvatarFallback>
-                      </Avatar>
-                    </button>
-                  ))}
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload Photo
+                    </Button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label>University</Label>
+                  <Select
+                    value={studentData.university}
+                    onValueChange={(value: University) => 
+                      setStudentData(prev => ({ ...prev, university: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your university" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {africanUniversities.map((uni) => (
+                        <SelectItem key={uni} value={uni}>
+                          {uni}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {studentData.university === 'Other' && (
+                  <div>
+                    <Label>Other University</Label>
+                    <Input
+                      value={studentData.otherUniversity}
+                      onChange={(e) => setStudentData(prev => ({ ...prev, otherUniversity: e.target.value }))}
+                      placeholder="Enter your university name"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <Label>Year of Study</Label>
+                  <Select
+                    value={studentData.yearOfStudy}
+                    onValueChange={(value) => 
+                      setStudentData(prev => ({ ...prev, yearOfStudy: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {YEARS_OF_STUDY.map((year) => (
+                        <SelectItem key={year} value={year}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
               <Button
                 onClick={() => setStep(2)}
                 className="w-full"
+                disabled={!studentData.fullName || !studentData.university}
               >
                 Continue
               </Button>
@@ -105,98 +202,82 @@ export function OnboardingFlow() {
           {step === 2 && (
             <div className="space-y-6">
               <div className="text-center">
-                <Wallet className="w-12 h-12 text-blue-600 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold mb-2">Create Your Wallet</h2>
+                <GraduationCap className="w-12 h-12 text-blue-600 mx-auto mb-4" />
+                <h2 className="text-xl font-semibold mb-2">Academic Interests</h2>
                 <p className="text-gray-600 text-sm">
-                  We&apos;ll create a secure Solana wallet for you
+                  Help us personalize your experience
                 </p>
               </div>
 
-              <Card className="p-4 bg-blue-50 border-blue-200">
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <CheckCircle className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="text-sm">
-                    <p className="font-medium text-blue-900 mb-1">
-                      Secure & Non-Custodial
-                    </p>
-                    <p className="text-blue-700">
-                      Your private keys are encrypted and stored securely. Only you have access.
-                    </p>
-                  </div>
+              <div className="space-y-4">
+                <div>
+                  <Label>Academic Interests</Label>
+                  <Textarea
+                    value={studentData.academicInterests}
+                    onChange={(e) => setStudentData(prev => ({ ...prev, academicInterests: e.target.value }))}
+                    placeholder="What subjects or areas interest you the most?"
+                    className="h-24"
+                  />
                 </div>
-              </Card>
 
-              <Button
-                onClick={handleCreateWallet}
-                disabled={walletCreated}
-                className="w-full"
-              >
-                {walletCreated ? (
-                  <>
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Wallet Created
-                  </>
-                ) : (
-                  'Create Wallet'
+                <div>
+                  <Label>Preferred Contact Method</Label>
+                  <RadioGroup
+                    value={studentData.contactMethod}
+                    onValueChange={(value: 'email' | 'phone' | 'both') => 
+                      setStudentData(prev => ({ ...prev, contactMethod: value }))
+                    }
+                    className="mt-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="email" id="email" />
+                      <Label htmlFor="email">Email</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="phone" id="phone" />
+                      <Label htmlFor="phone">Phone</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="both" id="both" />
+                      <Label htmlFor="both">Both</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {(studentData.contactMethod === 'email' || studentData.contactMethod === 'both') && (
+                  <div>
+                    <Label>Email Address</Label>
+                    <Input
+                      type="email"
+                      value={studentData.email}
+                      onChange={(e) => setStudentData(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="Enter your email address"
+                    />
+                  </div>
                 )}
-              </Button>
 
-              {walletCreated && (
-                <Button
-                  onClick={() => setStep(3)}
-                  variant="outline"
-                  className="w-full"
-                >
-                  Continue
-                </Button>
-              )}
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold mb-2">You&apos;re All Set!</h2>
-                <p className="text-gray-600 text-sm">
-                  Welcome to StudIQ. Start your learning and financial journey.
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <Card className="p-4">
-                  <div className="flex items-center space-x-3">
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={selectedAvatar} />
-                      <AvatarFallback>U</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">Profile Ready</p>
-                      <p className="text-sm text-gray-600">Avatar selected</p>
-                    </div>
+                {(studentData.contactMethod === 'phone' || studentData.contactMethod === 'both') && (
+                  <div>
+                    <Label>Phone Number</Label>
+                    <Input
+                      type="tel"
+                      value={studentData.phone}
+                      onChange={(e) => setStudentData(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="Enter your phone number"
+                    />
                   </div>
-                </Card>
-
-                <Card className="p-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      <Wallet className="w-5 h-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Wallet Created</p>
-                      <p className="text-sm text-gray-600">Ready for DeFi</p>
-                    </div>
-                  </div>
-                </Card>
+                )}
               </div>
 
               <Button
                 onClick={handleComplete}
                 className="w-full"
+                disabled={!studentData.academicInterests || 
+                  (studentData.contactMethod === 'email' && !studentData.email) ||
+                  (studentData.contactMethod === 'phone' && !studentData.phone) ||
+                  (studentData.contactMethod === 'both' && (!studentData.email || !studentData.phone))}
               >
-                Enter StudIQ
+                Complete Setup
               </Button>
             </div>
           )}

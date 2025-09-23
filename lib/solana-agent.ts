@@ -10,9 +10,19 @@ export class SolanaAgent extends SolanaAgentKit {
   private rpcUrl: string;
 
   constructor(wallet: WalletContextState, rpc_url?: string, config: Partial<Config> = {}) {
-    const rpcUrlToUse = rpc_url || process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+    // Determine environment and use appropriate RPC URL
+    const isProduction = process.env.NEXT_PUBLIC_SOLANA_CONFIG === 'PROD';
+    const defaultRpcUrl = isProduction
+      ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_PROD
+      : process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV;
+    
+    const rpcUrlToUse = rpc_url || defaultRpcUrl || 'https://api.devnet.solana.com';
+    
     // Local connection for sending transactions via wallet adapter's sendTransaction
-    const connectionForSend = new Connection(rpcUrlToUse);
+    const connectionForSend = new Connection(rpcUrlToUse, {
+      commitment: 'confirmed',
+      wsEndpoint: rpcUrlToUse.replace('https://', 'wss://'),
+    });
 
     // Adapt WalletContextState to SolanaAgentKit BaseWallet interface
     const walletWrapper = {

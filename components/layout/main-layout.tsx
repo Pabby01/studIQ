@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { MobileNavigation } from './mobile-navigation';
 import { DesktopNavigation } from './desktop-navigation';
+import { Footer } from './footer';
 import { LearningHub } from '@/components/features/learning-hub';
 import { FinanceHub } from '@/components/features/finance-hub';
 import CampusHub from '@/components/features/campus-hub';
@@ -74,7 +75,7 @@ export function MainLayout() {
         </div>
 
         {/* Main Content */}
-        <div className="pb-20 md:pb-0 md:pt-16">
+        <div className="pt-14 pb-20 md:pb-0 md:pt-16">
           {renderContent()}
         </div>
 
@@ -82,6 +83,9 @@ export function MainLayout() {
         <div className="md:hidden">
           <MobileNavigation activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
+
+        {/* Footer */}
+        <Footer />
       </ErrorBoundary>
     </div>
   );
