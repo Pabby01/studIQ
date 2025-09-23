@@ -29,6 +29,9 @@ export async function POST(req: Request) {
     const { error: resendError } = await supabase.auth.resend({
       type: 'signup',
       email: user.email!,
+      options: {
+        emailRedirectTo: process.env.NEXT_PUBLIC_APP_URL + '/auth/callback',
+      },
     });
 
     if (resendError) {

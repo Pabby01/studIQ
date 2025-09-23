@@ -86,7 +86,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       email,
       password,
       options: {
-        data: { username }
+        data: { username },
+        emailRedirectTo: process.env.NEXT_PUBLIC_APP_URL + '/auth/callback',
       }
     });
     return { data, error };
