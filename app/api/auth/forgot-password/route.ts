@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user from auth system first
-    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(email);
+    const { data: { user: authUser }, error: authError } = await supabase.auth.admin.getUserById(email);
 
     if (authError) {
       AuthLogger.error('Error looking up auth user', { endpoint, email, error: authError });
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    AuthLogger.info('User found for password reset', { endpoint, email, userId: authUser.user.id });
+    AuthLogger.info('User found for password reset', { endpoint, email, userId: authUser.id });
 
     // Generate secure token
     const { token, hash } = generateSecureToken();
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
     AuthLogger.info('Generated password reset token', { 
       endpoint, 
       email, 
-      userId: authUser.user.id,
+      userId: authUser.id,
       expiresAt: expiresAt.toISOString() 
     });
 
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
     const { error: cleanupError } = await supabase
       .from('password_reset_tokens')
       .delete()
-      .eq('user_id', authUser.user.id);
+      .eq('user_id', authUser.id);
 
     if (cleanupError) {
       console.error('Error cleaning up existing tokens:', cleanupError);
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
       const { data: insertData, error: insertError } = await supabase
         .from('password_reset_tokens')
         .insert({
-          user_id: authUser.user.id,
+          user_id: authUser.id,
           token_hash: hash,
           expires_at: expiresAt.toISOString(),
           created_at: new Date().toISOString()
@@ -191,9 +191,9 @@ export async function POST(request: NextRequest) {
         return AuthErrorHandler.handleDatabaseError(insertError, endpoint, email);
       }
 
-      AuthLogger.info('Password reset token stored successfully', { endpoint, email, userId: authUser.user.id });
+      AuthLogger.info('Password reset token stored successfully', { endpoint, email, userId: authUser.id });
     } catch (insertError) {
-      AuthLogger.error('Failed to store password reset token', insertError, { endpoint, email, userId: authUser.user.id });
+      AuthLogger.error('Failed to store password reset token', insertError, { endpoint, email, userId: authUser.id });
       return AuthErrorHandler.handleInternalError(new Error('Failed to store reset token'), endpoint);
     }
 
@@ -202,7 +202,7 @@ export async function POST(request: NextRequest) {
     
     try {
       await emailService.sendPasswordResetEmail(email, token);
-      AuthLogger.info('Password reset email sent successfully', { endpoint, email, userId: authUser.user.id });
+      AuthLogger.info('Password reset email sent successfully', { endpoint, email, userId: authUser.id });
       
       return NextResponse.json(
         { 
@@ -211,7 +211,7 @@ export async function POST(request: NextRequest) {
         { status: 200 }
       );
     } catch (emailError) {
-      AuthLogger.error('Failed to send password reset email', emailError, { endpoint, email, userId: authUser.user.id });
+      AuthLogger.error('Failed to send password reset email', emailError, { endpoint, email, userId: authUser.id });
       
       // Even if email fails, don't reveal this to the user for security
       // But log the error for monitoring
