@@ -158,23 +158,23 @@ export default function Home() {
             <div className="flex flex-col items-center sm:items-start gap-4">
               <h3 className="font-semibold text-slate-900">Connect With Us</h3>
               <div className="flex items-center gap-4">
-                <a href="https://twitter.com/studiq" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-400 transition-colors">
+                <a href="https://x.com/StudIQ_main" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-400 transition-colors">
                   <Twitter className="h-5 w-5" />
                   <span className="sr-only">Twitter</span>
                 </a>
-                <a href="https://facebook.com/studiq" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-600 transition-colors">
+                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-600 transition-colors">
                   <Facebook className="h-5 w-5" />
                   <span className="sr-only">Facebook</span>
                 </a>
-                <a href="https://instagram.com/studiq" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-rose-500 transition-colors">
+                <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-rose-500 transition-colors">
                   <Instagram className="h-5 w-5" />
                   <span className="sr-only">Instagram</span>
                 </a>
-                <a href="https://linkedin.com/company/studiq" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-700 transition-colors">
+                <a href="https://linkedin.com/company" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-700 transition-colors">
                   <Linkedin className="h-5 w-5" />
                   <span className="sr-only">LinkedIn</span>
                 </a>
-                <a href="https://github.com/studiq" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-slate-900 transition-colors">
+                <a href="https://github.com/Pabby01/studIQ" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-slate-900 transition-colors">
                   <Github className="h-5 w-5" />
                   <span className="sr-only">GitHub</span>
                 </a>

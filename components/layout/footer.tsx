@@ -5,11 +5,11 @@ import { Facebook, Twitter, Instagram, Linkedin, Github } from 'lucide-react';
 
 export function Footer() {
   const socialLinks = [
-    { icon: Facebook, href: 'https://facebook.com/studiq', label: 'Facebook' },
-    { icon: Twitter, href: 'https://twitter.com/studiq', label: 'Twitter' },
-    { icon: Instagram, href: 'https://instagram.com/studiq', label: 'Instagram' },
-    { icon: Linkedin, href: 'https://linkedin.com/company/studiq', label: 'LinkedIn' },
-    { icon: Github, href: 'https://github.com/studiq', label: 'GitHub' }
+    { icon: Facebook, href: 'https://facebook.com', label: 'Facebook' },
+    { icon: Twitter, href: 'https://x.com/StudIQ_main', label: 'Twitter' },
+    { icon: Instagram, href: 'https://instagram.com', label: 'Instagram' },
+    { icon: Linkedin, href: 'https://linkedin.com/company', label: 'LinkedIn' },
+    { icon: Github, href: 'https://github.com/Pabby01/studIQ', label: 'GitHub' }
   ];
 
   return (
