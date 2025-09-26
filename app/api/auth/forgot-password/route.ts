@@ -124,7 +124,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user from auth system first
-    const { data: { user: authUser }, error: authError } = await supabase.auth.admin.getUserById(email);
+    const { data: { users }, error: authError } = await supabase.auth.admin.listUsers({
+      filters: {
+        email: email
+      }
+    });
 
     if (authError) {
       AuthLogger.error('Error looking up auth user', { endpoint, email, error: authError });
@@ -136,6 +140,8 @@ export async function POST(request: NextRequest) {
         { status: 200 }
       );
     }
+    
+    const authUser = users?.[0];
     if (!authUser) {
       AuthLogger.info('Password reset requested for non-existent email', { endpoint, email });
       // Don't reveal if user exists or not for security
