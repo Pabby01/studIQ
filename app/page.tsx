@@ -23,7 +23,8 @@ export default function Home() {
           </Link>
           <nav className="flex items-center gap-2 sm:gap-3">
             <Link href="/features" className="hidden sm:inline-block text-sm text-slate-600 hover:text-slate-900 transition-colors">Features</Link>
-            <Link href="/why" className="hidden sm:inline-block text-sm text-slate-600 hover:text-slate-900 transition-colors">Why StudIQ</Link>
+            <Link href="/pricing" className="hidden sm:inline-block text-sm text-slate-600 hover:text-slate-900 transition-colors">Pricing</Link>
+            <Link href="/faq" className="hidden sm:inline-block text-sm text-slate-600 hover:text-slate-900 transition-colors">FAQ</Link>
             <Link href="/contact" className="hidden sm:inline-block text-sm text-slate-600 hover:text-slate-900 transition-colors">Contact</Link>
             <Button asChild>
               <Link href="/login" aria-label="Go to login">Log in</Link>
@@ -136,57 +137,111 @@ export default function Home() {
       {/* Footer */}
       <footer className="py-10 border-t border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8">
             {/* Logo and Description */}
-            <div className="flex flex-col items-center sm:items-start gap-4">
+            <div className="lg:col-span-2 flex flex-col items-center sm:items-start gap-4">
               <Logo size="sm" />
               <p className="text-sm text-slate-600 text-center sm:text-left">
-                Empowering students through decentralized education and finance
+                Empowering students through decentralized education and finance. Join our community of learners and unlock your potential with AI-driven education.
               </p>
-            </div>
-            
-            {/* Quick Links */}
-            <div className="flex flex-col items-center sm:items-start gap-2">
-              <h3 className="font-semibold text-slate-900 mb-2">Quick Links</h3>
-              <Link href="/login" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Login</Link>
-              <Link href="/features" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Features</Link>
-              <Link href="/why" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Why StudIQ</Link>
-              <Link href="/contact" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Contact</Link>
-            </div>
-            
-            {/* Social Links */}
-            <div className="flex flex-col items-center sm:items-start gap-4">
-              <h3 className="font-semibold text-slate-900">Connect With Us</h3>
-              <div className="flex items-center gap-4">
-                <a href="https://x.com/StudIQ_main" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-400 transition-colors">
-                  <Twitter className="h-5 w-5" />
-                  <span className="sr-only">Twitter</span>
-                </a>
-                <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-600 transition-colors">
-                  <Facebook className="h-5 w-5" />
-                  <span className="sr-only">Facebook</span>
-                </a>
-                <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-rose-500 transition-colors">
-                  <Instagram className="h-5 w-5" />
-                  <span className="sr-only">Instagram</span>
-                </a>
-                <a href="https://linkedin.com/company" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-700 transition-colors">
-                  <Linkedin className="h-5 w-5" />
-                  <span className="sr-only">LinkedIn</span>
-                </a>
-                <a href="https://github.com/Pabby01/studIQ" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-slate-900 transition-colors">
-                  <Github className="h-5 w-5" />
-                  <span className="sr-only">GitHub</span>
-                </a>
+              <div className="mt-4">
+                <div className="flex flex-col gap-1 text-sm text-slate-600">
+                  <p>19, Gbenga Alao Crescent</p>
+                  <p>Command, Abule Egba</p>
+                  <p>Lagos Nigeria</p>
+                  <a href="tel:+2349022050260" className="hover:text-slate-900 transition-colors">(+234) 902 205 0260</a>
+                  <a href="mailto:info@studiq.fun" className="hover:text-slate-900 transition-colors">info@studiq.fun</a>
+                </div>
+                <div className="mt-3 text-sm text-slate-600">
+                  <p className="font-medium">Business Hours:</p>
+                  <p>Monday - Friday: 9:00 AM - 6:00 PM WAT</p>
+                  <p>Saturday: 10:00 AM - 4:00 PM WAT</p>
+                </div>
               </div>
+            </div>
+            
+            {/* Product Links */}
+            <div className="flex flex-col items-center sm:items-start gap-2">
+              <h3 className="font-semibold text-slate-900 mb-2">Product</h3>
+              <Link href="/features" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Features</Link>
+              <Link href="/pricing" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Pricing</Link>
+              <Link href="/faq" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">FAQ</Link>
+              <Link href="/ai-learning" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">AI Learning</Link>
+              <Link href="/finance-hub" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Finance Hub</Link>
+              <Link href="/campus-hub" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Campus Hub</Link>
+            </div>
+
+            {/* Company Links */}
+            <div className="flex flex-col items-center sm:items-start gap-2">
+              <h3 className="font-semibold text-slate-900 mb-2">Company</h3>
+              <Link href="/about" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">About Us</Link>
+              <Link href="/contact" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Contact</Link>
+              <Link href="/careers" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Careers</Link>
+              <Link href="/blog" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Blog</Link>
+              <Link href="/press" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Press</Link>
+              <Link href="/partners" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Partners</Link>
+            </div>
+            
+            {/* Legal Links */}
+            <div className="flex flex-col items-center sm:items-start gap-2">
+              <h3 className="font-semibold text-slate-900 mb-2">Legal</h3>
+              <Link href="/privacy-policy" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Privacy Policy</Link>
+              <Link href="/terms" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Terms & Conditions</Link>
+              <Link href="/cookie-policy" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Cookie Policy</Link>
+              <Link href="/security" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Security</Link>
+              <Link href="/accessibility" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">Accessibility</Link>
+              <Link href="/gdpr" className="text-sm text-slate-600 hover:text-slate-900 transition-colors">GDPR</Link>
             </div>
           </div>
           
-          {/* Copyright */}
-          <div className="mt-8 pt-6 border-t border-slate-200 text-center">
-            <p className="text-sm text-slate-500">
-              © {new Date().getFullYear()} StudIQ. All rights reserved.
-            </p>
+          {/* Trust Badges and Social Links */}
+          <div className="mt-12 pt-8 border-t border-slate-200">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+              {/* Trust Badges */}
+              <div className="flex flex-wrap justify-center lg:justify-start gap-6">
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <Shield className="h-5 w-5 text-emerald-500" />
+                  <span>SOC 2 Type II Certified</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <Shield className="h-5 w-5 text-blue-500" />
+                  <span>GDPR Compliant</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <Shield className="h-5 w-5 text-amber-500" />
+                  <span>ISO 27001 Certified</span>
+                </div>
+              </div>
+              
+              {/* Social Links */}
+              <div className="flex flex-col items-center lg:items-end gap-4">
+                <div className="flex items-center gap-4">
+                  <a href="https://x.com/StudIQ_main" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-400 transition-colors">
+                    <Twitter className="h-5 w-5" />
+                    <span className="sr-only">Twitter</span>
+                  </a>
+                  <a href="https://facebook.com/StudIQ" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-600 transition-colors">
+                    <Facebook className="h-5 w-5" />
+                    <span className="sr-only">Facebook</span>
+                  </a>
+                  <a href="https://instagram.com/StudIQ.edu" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-rose-500 transition-colors">
+                    <Instagram className="h-5 w-5" />
+                    <span className="sr-only">Instagram</span>
+                  </a>
+                  <a href="https://linkedin.com/company/studiq" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-blue-700 transition-colors">
+                    <Linkedin className="h-5 w-5" />
+                    <span className="sr-only">LinkedIn</span>
+                  </a>
+                  <a href="https://github.com/Pabby01/studIQ" target="_blank" rel="noopener noreferrer" className="text-slate-600 hover:text-slate-900 transition-colors">
+                    <Github className="h-5 w-5" />
+                    <span className="sr-only">GitHub</span>
+                  </a>
+                </div>
+                <p className="text-sm text-slate-500">
+                  © {new Date().getFullYear()} StudIQ. All rights reserved.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </footer>

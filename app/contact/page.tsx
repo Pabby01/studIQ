@@ -1,61 +1,61 @@
-'use client';
+import { Metadata } from 'next';
+import { ContactForm } from '@/components/contact/contact-form';
 
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+export const metadata: Metadata = {
+  title: 'Contact Us | StudIQ',
+  description: 'Get in touch with StudIQ. We\'re here to help with any questions about our AI-powered learning platform.',
+  openGraph: {
+    title: 'Contact StudIQ',
+    description: 'Get in touch with StudIQ. We\'re here to help with any questions about our AI-powered learning platform.',
+    type: 'website',
+  },
+};
 
 export default function ContactPage() {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-white to-slate-50">
-      <section className="border-b border-slate-200 bg-white/80 backdrop-blur">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/" className="font-semibold tracking-tight">StudIQ</Link>
-          <div className="flex items-center gap-2">
-            <Button asChild variant="ghost"><Link href="/features">Features</Link></Button>
-            <Button asChild variant="ghost"><Link href="/why">Why</Link></Button>
-            <Button asChild variant="ghost"><Link href="/contact">Contact</Link></Button>
-            <Button asChild><Link href="/login">Login</Link></Button>
+    <div className="container mx-auto px-4 py-12">
+      <div className="max-w-3xl mx-auto">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold mb-4">Contact Us</h1>
+          <p className="text-lg text-gray-600">
+            Have questions? We&apos;d love to hear from you. Send us a message and we&apos;ll
+            respond as soon as possible.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-lg p-8">
+          <ContactForm />
+        </div>
+
+        <div className="mt-12 grid md:grid-cols-3 gap-8 text-center">
+          <div className="p-6 bg-white rounded-lg shadow-lg">
+            <h3 className="text-xl font-semibold mb-2">Email</h3>
+            <p className="text-gray-600">support@studiq.fun</p>
+          </div>
+
+          <div className="p-6 bg-white rounded-lg shadow-lg">
+            <h3 className="text-xl font-semibold mb-2">Office Hours</h3>
+            <p className="text-gray-600">Monday - Friday<br />9:00 AM - 6:00 PM WAT</p>
+          </div>
+
+          <div className="p-6 bg-white rounded-lg shadow-lg">
+            <h3 className="text-xl font-semibold mb-2">Location</h3>
+            <p className="text-gray-600">Lagos,<br />Nigeria</p>
           </div>
         </div>
-      </section>
 
-      <section className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Contact us</h1>
-        <p className="mt-2 text-slate-600">Have questions or feedback? Fill out the form and we&apos;ll get back to you.</p>
-
-        <form className="mt-8 space-y-6" onSubmit={(e) => e.preventDefault()}>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" name="name" placeholder="Your name" required />
-            </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" name="email" placeholder="you@example.com" required />
-            </div>
-          </div>
-          <div>
-            <Label htmlFor="subject">Subject</Label>
-            <Input id="subject" name="subject" placeholder="How can we help?" required />
-          </div>
-          <div>
-            <Label htmlFor="message">Message</Label>
-            <Textarea id="message" name="message" placeholder="Write your message..." rows={6} required />
-          </div>
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-slate-500">We&apos;ll never share your information.</p>
-            <Button type="submit">Send message</Button>
-          </div>
-        </form>
-
-        <div className="mt-10 text-sm text-slate-600">
-          <p className="font-medium">Other ways to reach us</p>
-          <p className="mt-1">Email: support@studiq.app</p>
-          <p>Campus office: 123 Learning Ave, Suite 100</p>
+        <div className="mt-12 text-center text-gray-600">
+          <p>
+            For urgent matters, please email us directly at{' '}
+            <a
+              href="mailto:urgent@studiq.com"
+              className="text-blue-600 hover:text-blue-800"
+            >
+              urgent@studiq.fun
+            </a>
+          </p>
         </div>
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }
