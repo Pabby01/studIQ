@@ -27,43 +27,31 @@ async function validateToken(token: string) {
   
   const tokenHash = createHash('sha256').update(token).digest('hex');
 
-  // Find the token in database
-  const { data: tokenData, error: tokenError } = await supabase
-    .from('password_reset_tokens')
-    .select('id, user_id, expires_at, used_at')
-    .eq('token_hash', tokenHash)
-    .single();
+  // Use the validate_password_reset_token function
+  const { data: validationResult, error: validationError } = await supabase
+    .rpc('validate_password_reset_token', { p_token_hash: tokenHash });
 
-  if (tokenError || !tokenData) {
+  if (validationError || !validationResult?.[0]) {
     console.warn('Invalid password reset token attempted');
     return { valid: false, error: 'Invalid or expired token' };
   }
 
-  // Check if token is already used
-  if (tokenData.used_at) {
-    console.warn(`Attempt to reuse password reset token: ${tokenData.id}`);
-    return { valid: false, error: 'Token has already been used' };
-  }
-
-  // Check if token is expired
-  const now = new Date();
-  const expiresAt = new Date(tokenData.expires_at);
-  
-  if (now > expiresAt) {
-    console.warn(`Expired password reset token attempted: ${tokenData.id}`);
-    return { valid: false, error: 'Token has expired' };
+  const result = validationResult[0];
+  if (!result.is_valid) {
+    console.warn('Token validation failed:', result.error_message);
+    return { valid: false, error: result.error_message };
   }
 
   return { 
     valid: true, 
     tokenData: {
-      id: tokenData.id,
-      userId: tokenData.user_id,
+      userId: result.user_id,
+      tokenHash: tokenHash // Use tokenHash instead of id for marking as used
     }
   };
 }
 
-async function markTokenAsUsed(tokenId: string) {
+async function markTokenAsUsed(tokenHash: string) {
   const supabase = getSupabaseAdmin();
   
   if (!supabase) {
@@ -71,12 +59,11 @@ async function markTokenAsUsed(tokenId: string) {
     throw new Error('Database connection failed');
   }
   
-  const { error } = await supabase
-    .from('password_reset_tokens')
-    .update({ used_at: new Date().toISOString() })
-    .eq('id', tokenId);
+  // Use the mark_token_used function
+  const { data: result, error } = await supabase
+    .rpc('mark_token_used', { p_token_hash: tokenHash });
 
-  if (error) {
+  if (error || !result) {
     console.error('Error marking token as used:', error);
     throw new Error('Failed to mark token as used');
   }
@@ -256,7 +243,7 @@ export async function POST(request: NextRequest) {
 
     // Mark token as used
     const markTokenResult = await safeExecute(
-      () => markTokenAsUsed(tokenData!.id),
+      () => markTokenAsUsed(tokenData!.tokenHash),
       endpoint,
       AuthErrorType.DATABASE_ERROR
     );
@@ -278,7 +265,7 @@ export async function POST(request: NextRequest) {
         .from('password_reset_tokens')
         .delete()
         .eq('user_id', tokenData!.userId)
-        .neq('id', tokenData!.id);
+        .neq('token_hash', tokenData!.tokenHash);
 
       if (cleanupError) {
         AuthLogger.warn('Error cleaning up other tokens', { 
@@ -345,9 +332,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Mark token as used to invalidate it
-    await markTokenAsUsed(tokenValidation.tokenData!.id);
+    await markTokenAsUsed(tokenValidation.tokenData!.tokenHash);
 
-    console.info(`Password reset token invalidated: ${tokenValidation.tokenData!.id}`);
+    console.info(`Password reset token invalidated for user: ${tokenValidation.tokenData!.userId}`);
 
     return NextResponse.json(
       { message: 'Token has been invalidated' },

@@ -26,11 +26,17 @@ export const SolanaProvider: FC<Props> = ({ children }) => {
   const endpoint = useMemo(() => {
     const isProduction = process.env.NEXT_PUBLIC_SOLANA_CONFIG === 'PROD';
     const network = isProduction ? 'mainnet-beta' : 'devnet';
+    
+    // Use Helius RPC endpoints
+    const defaultEndpoint = isProduction
+      ? 'https://mainnet.helius-rpc.com/?api-key=' + process.env.NEXT_PUBLIC_HELIUS_API_KEY
+      : 'https://devnet.helius-rpc.com/?api-key=' + process.env.NEXT_PUBLIC_HELIUS_API_KEY;
+    
     const configuredEndpoint = isProduction
       ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_PROD
       : process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV;
     
-    return configuredEndpoint || clusterApiUrl(network);
+    return configuredEndpoint || defaultEndpoint;
   }, []);
 
   const wallets = useMemo(() => {

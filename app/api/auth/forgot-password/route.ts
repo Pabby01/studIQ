@@ -1,3 +1,5 @@
+'use client';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { createHash, randomBytes } from 'crypto';
@@ -123,15 +125,11 @@ export async function POST(request: NextRequest) {
       return AuthErrorHandler.handleInternalError(new Error('Database connection failed'), endpoint);
     }
 
-    // Get user from auth system first
-    // Retrieve user by querying the auth.users table directly
-    const { data: authUsers, error: authError } = await supabase
-      .from('auth.users')
-      .select('id, email')
-      .eq('email', email)
-      .single();
-
-    const authUser = authUsers || null;
+    // Get user from auth system using the admin API
+    const { data: { users }, error: authError } = await supabase.auth.admin.listUsers({
+      perPage: 1,
+      page: 1
+    });
 
     if (authError) {
       AuthLogger.error('Error looking up auth user', { endpoint, email, error: authError });
@@ -143,6 +141,9 @@ export async function POST(request: NextRequest) {
         { status: 200 }
       );
     }
+
+    const authUser = users?.find(user => user.email?.toLowerCase() === email.toLowerCase()) || null;
+
     if (!authUser) {
       AuthLogger.info('Password reset requested for non-existent email', { endpoint, email });
       // Don't reveal if user exists or not for security
@@ -247,23 +248,24 @@ export async function DELETE() {
         { status: 500 }
       );
     }
-    
-    const { error } = await supabase.rpc('cleanup_expired_password_reset_tokens');
-    
-    if (error) {
-      console.error('Error cleaning up expired tokens:', error);
+
+    const { error: deleteError } = await supabase
+      .from('password_reset_tokens')
+      .delete()
+      .lt('expires_at', new Date().toISOString());
+
+    if (deleteError) {
+      console.error('Error cleaning up expired tokens:', deleteError);
       return NextResponse.json(
-        { error: 'Failed to cleanup expired tokens' },
+        { error: 'Failed to clean up expired tokens' },
         { status: 500 }
       );
     }
 
-    console.info('Successfully cleaned up expired password reset tokens');
     return NextResponse.json(
       { message: 'Expired tokens cleaned up successfully' },
       { status: 200 }
     );
-
   } catch (error) {
     console.error('Unexpected error in token cleanup:', error);
     return NextResponse.json(
