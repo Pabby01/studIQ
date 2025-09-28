@@ -16,7 +16,7 @@ export class SolanaAgent extends SolanaAgentKit {
       ? process.env.NEXT_PUBLIC_SOLANA_RPC_URL_PROD
       : process.env.NEXT_PUBLIC_SOLANA_RPC_URL_DEV;
     
-    const rpcUrlToUse = rpc_url || defaultRpcUrl || 'https://api.devnet.solana.com';
+    const rpcUrlToUse = rpc_url || defaultRpcUrl || 'https://api.mainnet-beta.solana.com';
     
     // Local connection for sending transactions via wallet adapter's sendTransaction
     const connectionForSend = new Connection(rpcUrlToUse, {

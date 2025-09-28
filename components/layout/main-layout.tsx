@@ -85,7 +85,7 @@ export function MainLayout() {
         </div>
 
         {/* Footer */}
-        <Footer />
+        
       </ErrorBoundary>
     </div>
   );

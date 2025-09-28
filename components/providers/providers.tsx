@@ -10,7 +10,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 
 const useSolanaAgent = () => {
   const wallet = useWallet();
-  const endpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
+  const endpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
   return new SolanaAgent(wallet, endpoint);
 };
 

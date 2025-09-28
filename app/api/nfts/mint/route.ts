@@ -23,9 +23,9 @@ export async function POST(req: Request) {
     }
 
     // Initialize Solana connection
-    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+    const connection = new Connection(process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
     
-    // Use environment payer key or generate temporary one for devnet
+    // Use environment payer key or generate temporary one for 
     const payer = process.env.SOLANA_PAYER_KEY 
       ? Keypair.fromSecretKey(Uint8Array.from(Buffer.from(process.env.SOLANA_PAYER_KEY, 'base64')))
       : Keypair.generate();

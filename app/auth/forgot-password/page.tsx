@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 
 function ForgotPasswordContent() {
   const handleBack = () => {
-    window.location.href = '/auth/signin';
+    window.location.href = '/login';
   };
 
   return (

@@ -478,8 +478,8 @@ const pubkey = wallet.publicKey ? wallet.publicKey.toBase58() : '';
                     onClick={() => {
                       if (!pubkey) return;
                       const rpc = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || '';
-                      const isDevnet = /devnet|testnet/i.test(rpc) || rpc.includes('devnet');
-                      const url = `https://explorer.solana.com/address/${pubkey}${isDevnet ? '?cluster=devnet' : ''}`;
+                      const isMainnetBeta = /mainnet-beta|testnet/i.test(rpc) || rpc.includes('mainnet-beta');
+                      const url = `https://explorer.solana.com/address/${pubkey}${isMainnetBeta ? '?cluster=mainnet-beta' : ''}`;
                       window.open(url, '_blank');
                     }}
                     disabled={!pubkey}

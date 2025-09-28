@@ -263,7 +263,7 @@ export function FinanceHub() {
 
       try {
         setBalanceLoading(true);
-        const agent = new SolanaAgent(wallet, process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+        const agent = new SolanaAgent(wallet, process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
         const balance = await agent.getBalance(publicKey.toString());
         setRealWalletBalance(balance);
       } catch (error) {
@@ -474,7 +474,7 @@ export function FinanceHub() {
       if (publicKey && signTransaction) {
         try {
           // Create Solana connection
-          const connection = new Connection('https://api.devnet.solana.com', 'confirmed');
+          const connection = new Connection('https://api.mainnet-beta.solana.com', 'confirmed');
           
           // Convert amount to lamports
           const lamports = Math.floor(amountNum * LAMPORTS_PER_SOL);

@@ -19,7 +19,7 @@ export const WalletBalance: FC = () => {
 
       try {
         setLoading(true);
-        const agent = new SolanaAgent(wallet, process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com');
+        const agent = new SolanaAgent(wallet, process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com');
         const bal = await agent.getBalance(publicKey.toString());
         setBalance(bal);
       } catch (error) {
